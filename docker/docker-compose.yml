@@ -29,6 +29,7 @@ services:
       GENESIS_BALANCE: ${GENESIS_BALANCE}
       GENESIS_PRIVATE_KEY: ${GENESIS_PRIVATE_KEY}
       GETH_HOST: ${GETH_HOST}
+      JWT_SECRET: ${JWT_SECRET}
     volumes:
       - /etc/letsencrypt/live/${GETH_HOST}/fullchain.pem:/etc/nginx/ssl/selfsigned.crt
       - /etc/letsencrypt/live/${GETH_HOST}/privkey.pem:/etc/nginx/ssl/selfsigned.key
