@@ -4,7 +4,7 @@ services:
   # Solana validator
   solana:
     container_name: solana
-    image: romeprotocol/test-validator:latest
+    image: romelabs/test-validator:latest
     environment:
       RUST_LOG: solana_runtime::system_instruction_processor=debug,solana_runtime::message_processor=debug,solana_bpf_loader=debug,solana_rbpf=debug
     hostname: solana
@@ -30,7 +30,7 @@ services:
 
   proxy:
     container_name: proxy
-    image: romeprotocol/rome-apps:${PROXY_TAG:-latest}
+    image: romelabs/rome-apps:${PROXY_TAG:-latest}
     hostname: proxy
     environment:
       SERVICE_NAME: proxy
@@ -50,7 +50,7 @@ services:
 
   uniswap-v2-core:
     container_name: uniswap
-    image: romeprotocol/uniswap-v2-core:latest
+    image: romelabs/uniswap-v2-core:latest
     environment:
       NETWORK: proxy
       CHAIN_ID: 1001

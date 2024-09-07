@@ -27,15 +27,15 @@ jobs:
       - name: 'Checkout rome-evm repository'
         uses: actions/checkout@main
         with:
-          repository: rome-protocol/rome-evm-private
-          path: rome-evm-private
+          repository: rome-labs/rome-evm
+          path: rome-evm
           ref: ${{env.ROME_EVM_REF_NAME}}
           token: ${{ secrets.GIT_ROLLUP_TOKEN }}
 
       - name: 'Checkout rome-sdk repository'
         uses: actions/checkout@main
         with:
-          repository: rome-protocol/rome-sdk
+          repository: rome-labs/rome-sdk
           path: rome-sdk
           ref: ${{env.ROME_SDK_REF_NAME}}
           token: ${{ secrets.GIT_ROLLUP_TOKEN }}
@@ -58,8 +58,8 @@ jobs:
           context: .
           push: true
           file: rome-apps/docker/Dockerfile
-          tags: romeprotocol/rome-apps:${{env.REF_NAME}}
-          labels: romeprotocol/rome-apps:${{env.REF_NAME}}
+          tags: romelabs/rome-apps:${{env.REF_NAME}}
+          labels: romelabs/rome-apps:${{env.REF_NAME}}
 
       - name: 'Up Uniswap-v2-core tests'
         run: |
@@ -98,6 +98,6 @@ jobs:
           ( github.ref_name == 'main' )
         run: |
 
-          docker pull romeprotocol/rome-apps:${REF_NAME}
-          docker tag romeprotocol/rome-apps:${REF_NAME} romeprotocol/rome-apps:latest
-          docker push romeprotocol/rome-apps:latest
+          docker pull romelabs/rome-apps:${REF_NAME}
+          docker tag romelabs/rome-apps:${REF_NAME} romelabs/rome-apps:latest
+          docker push romelabs/rome-apps:latest

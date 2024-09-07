@@ -4,7 +4,7 @@ FROM ubuntu:22.04 as builder
 
 RUN apt update && apt install -y rustc cargo pkg-config libssl-dev
 
-COPY ./rome-evm-private /opt/rome-evm-private
+COPY ./rome-evm /opt/rome-evm
 COPY ./rome-sdk /opt/rome-sdk
 COPY ./rome-apps /opt/rome-apps
 
