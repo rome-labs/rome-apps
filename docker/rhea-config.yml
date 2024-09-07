@@ -1,0 +1,9 @@
+chain_id: 1001
+solana_url: "http://solana:8899"
+program_id_keypair: "/opt/rome-keypair.json"
+payer_keypair: "/opt/rhea-sender.json"
+number_holders: 256
+geth_http_addr: "http://geth:8545"
+geth_engine_addr: "http://geth:8551"
+geth_engine_secret: "a535c9f4f9df8e00cd6a15a7baa74bb92ca47ebdf59b6f3f2d8a8324b6c1767c"
+geth_poll_interval_ms: 100

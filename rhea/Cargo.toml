@@ -1,0 +1,34 @@
+[package]
+name = "rhea"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+dotenv = { workspace = true }
+
+# codec
+url = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+serde_yaml = { workspace = true }
+serde_json = { workspace = true }
+
+# log
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# async
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+
+# solana
+solana-sdk = { workspace = true }
+solana-client = { workspace = true }
+
+# rome
+rome-sdk = { workspace = true }
+
+# evm
+ethers = { workspace = true }

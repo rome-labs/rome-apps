@@ -1,0 +1,9 @@
+chain_id: 1001
+solana_url: "http://solana:8899"
+commitment_level: "confirmed"
+program_id_keypair: "/opt/rome-keypair.json"
+payer_keypair: "/opt/proxy-sender.json"
+log: "/var/log/proxy.log"
+host: "0.0.0.0:9090"
+number_holders: 256
+start_slot: 0

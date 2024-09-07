@@ -1,0 +1,117 @@
+version: "3"
+
+services:
+  # Solana validator
+  solana:
+    container_name: solana
+    image: solanalabs/solana:v1.18.17
+    environment:
+      RUST_LOG: solana_runtime::system_instruction_processor=debug,solana_runtime::message_processor=debug,solana_bpf_loader=debug,solana_rbpf=debug
+    hostname: solana
+    command: /usr/bin/solana-run.sh
+    ports:
+      - 8899:8899
+      - 9900:9900
+      - 8900:8900
+      - 8003:8003/udp
+    expose:
+      - "8899"
+      - "9900"
+      - "8900"
+      - "8001"
+      - "8001-8009/udp"
+    networks:
+      - net
+    healthcheck:
+      test: [ CMD-SHELL, "solana cluster-version -u http://solana:8899" ]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
+
+  # Builds Rome-EVM binary with selected parameters and deploys it
+  rome-evm-builder:
+    container_name: rome-evm-builder
+    image: romeprotocol/rome-evm-builder:${ROME_EVM_TAG:-latest}
+    environment:
+      SOLANA_RPC: http://solana:8899
+      CHAIN_ID: 1001
+      ROME_EVM_KEYPAIR: /opt/rome-keypair.json
+      CONTRACT_OWNER_KEYPAIR: /opt/rome-evm-owner.json
+      MINT_TO: 0x768b73EE6CA9e0A1bc32868CA65dB89E44696DD8
+      MINT_AMOUNT: '1000000000000000000000000'
+    volumes:
+      - ./rome-keypair.json:/opt/rome-keypair.json
+      - ./rome-evm-owner.json:/opt/rome-evm-owner.json
+      - ./rhea-sender.json:/opt/rhea-sender.json
+      - ./proxy-sender.json:/opt/proxy-sender.json
+    command: 'bash -c \
+        "/usr/bin/solana -u http://solana:8899 airdrop 100 /opt/rome-evm-owner.json \
+        && /usr/bin/solana -u http://solana:8899 airdrop 100 /opt/rhea-sender.json \
+        && /usr/bin/solana -u http://solana:8899 airdrop 100 /opt/proxy-sender.json \
+        && /opt/build.sh && /opt/deploy.sh && sleep 12 && /opt/initialize.sh"'
+    depends_on:
+      solana:
+        condition: service_healthy
+    networks:
+      - net
+
+  geth:
+    container_name: geth
+    image: romeprotocol/rollup-op-geth:${GETH_TAG:-latest}
+    hostname: geth
+    environment:
+      CHAIN_ID: '1001'
+      GENESIS_ADDRESS: 0x768b73EE6CA9e0A1bc32868CA65dB89E44696DD8
+      GENESIS_BALANCE: '1000000000000000000000000'
+      GENESIS_PRIVATE_KEY: 3f37802575d0840281551d5619256a84762e8236325537e8818730082645be65
+      GETH_HOST: localhost:3000
+    ports:
+      - 443:443
+      - 8545:8545
+      - 8546:8546
+      - 8551:8551
+      - 3000:3000
+    networks:
+      - net
+
+  rhea:
+    container_name: rhea
+    image: romeprotocol/rome-apps:${RHEA_TAG:-latest}
+    hostname: rhea
+    environment:
+      SERVICE_NAME: rhea
+      RHEA_CONFIG: /opt/rhea-config.yml
+    volumes:
+      - ./rhea-config.yml:/opt/rhea-config.yml
+      - ./rome-keypair.json:/opt/rome-keypair.json
+      - ./rhea-sender.json:/opt/rhea-sender.json
+    networks:
+      - net
+    depends_on:
+      rome-evm-builder:
+        condition: service_completed_successfully
+      geth:
+        condition: service_started
+
+  light_client:
+    container_name: light_client
+    image: romeprotocol/rome-apps:${PROXY_TAG:-latest}
+    hostname: light_client
+    environment:
+      SERVICE_NAME: proxy
+      PROXY_CONFIG: /opt/proxy-config.yml
+    volumes:
+      - ./proxy-config.yml:/opt/proxy-config.yml
+      - ./rome-keypair.json:/opt/rome-keypair.json
+      - ./proxy-sender.json:/opt/proxy-sender.json
+    ports:
+      - 9090:9090
+    networks:
+      - net
+    depends_on:
+      solana:
+        condition: service_healthy
+
+networks:
+  net:

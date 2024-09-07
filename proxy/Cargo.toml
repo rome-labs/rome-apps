@@ -1,0 +1,23 @@
+[package]
+name = "proxy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+log = { workspace = true }
+fast_log = { workspace = true }
+jsonrpsee = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+solana-sdk = { workspace = true }
+solana-client = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+hex = { workspace = true }
+rome-sdk = { workspace = true }
+ethers = { workspace = true }
+
+[lints.rust]
+warnings = "deny"
