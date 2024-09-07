@@ -6,8 +6,8 @@ on:
 
 env:
   REF_NAME: ${{github.ref_name}}
-  ROME_SDK_REF_NAME: v0.1.0
-  ROME_EVM_REF_NAME: v0.1.0
+  ROME_SDK_REF_NAME: production
+  ROME_EVM_REF_NAME: production
 
 permissions:
   contents: read
