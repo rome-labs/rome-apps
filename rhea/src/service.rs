@@ -1,5 +1,9 @@
+use rome_da::celestia::types::DaSubmissionBlock;
+use rome_da::celestia::RomeDaClient;
 use std::sync::Arc;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::Mutex;
+use tokio::task;
 
 use ethers::types::{transaction::eip2718::TypedTransaction, Signature};
 use rome_sdk::rome_evm_client::indexer::indexer::{BlockReceiver, BlockSender, Indexer};
@@ -17,6 +21,7 @@ pub struct RheaService {
     rome: Rome,
     geth_engine: GethEngine,
     indexer: Indexer,
+    da_client: Option<RomeDaClient>,
     state: Arc<Mutex<RheaState>>,
 }
 
@@ -27,11 +32,17 @@ struct RheaState {
 
 impl RheaService {
     /// Create a new RheaService from RheaConfig
-    pub fn new(rome: Rome, geth_engine: GethEngine, indexer: Indexer) -> anyhow::Result<Self> {
+    pub fn new(
+        rome: Rome,
+        geth_engine: GethEngine,
+        indexer: Indexer,
+        da_client: Option<RomeDaClient>,
+    ) -> anyhow::Result<Self> {
         Ok(Self {
             rome,
             geth_engine,
             indexer,
+            da_client,
             state: Arc::new(Mutex::new(RheaState {
                 last_block_timestamp: None,
                 timestamp_offset: 0,
@@ -100,7 +111,11 @@ impl RheaService {
         }
     }
 
-    async fn state_advance_loop(&self, mut block_rx: BlockReceiver) {
+    async fn state_advance_loop(
+        &self,
+        mut block_rx: BlockReceiver,
+        da_tx: Option<UnboundedSender<DaSubmissionBlock>>,
+    ) {
         while let Some(block) = block_rx.recv().await {
             let block_timestamp = block.timestamp.as_u64();
             let adjusted_timestamp = {
@@ -130,11 +145,55 @@ impl RheaService {
                     None
                 }
             } {
+                tracing::info!(
+                    "Advancing rollup state for block number: {:?}, transactions: {:?}",
+                    block.number,
+                    transactions.len()
+                );
                 let _ = self
                     .geth_engine
-                    .advance_rollup_state(transactions, adjusted_timestamp)
+                    .advance_rollup_state(&transactions, adjusted_timestamp)
                     .await;
-                // tracing::info!("Advanced rollup state: {:?}", result);
+
+                if let Some(da_tx) = &da_tx {
+                    da_tx
+                        .send(DaSubmissionBlock {
+                            block_number: block.number,
+                            timestamp: block.timestamp,
+                            transactions: transactions.iter().map(|(tx, _)| tx.clone()).collect(),
+                        })
+                        .expect("DA submission channel closed");
+                }
+            }
+        }
+    }
+
+    async fn batch_da_submissions(&self, mut da_rx: UnboundedReceiver<DaSubmissionBlock>) {
+        if let Some(da_client) = &self.da_client {
+            let buffer = Arc::new(Mutex::new(Vec::new()));
+            let buffer_clone = buffer.clone();
+
+            task::spawn({
+                async move {
+                    while let Some(event) = da_rx.recv().await {
+                        let mut buffer = buffer.lock().await;
+                        buffer.push(event);
+                    }
+                }
+            });
+
+            loop {
+                let mut buffer_ = buffer_clone.lock().await;
+                if !buffer_.is_empty() {
+                    let blocks = buffer_.split_off(0);
+                    match da_client.submit_blocks(&blocks).await {
+                        Ok(_) => tracing::info!("Submitted {:?} blocks", blocks.len()),
+                        Err(e) => tracing::error!("Failed to submit blocks: {:?}", e),
+                    }
+                }
+
+                drop(buffer_);
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
         }
     }
@@ -152,18 +211,53 @@ impl RheaService {
         let (block_tx, block_rx) = mpsc::unbounded_channel();
         let (idx_started_tx, idx_started_rx) = oneshot::channel();
 
-        tokio::select! {
-            res = self.start_indexer(start_slot, &block_tx, idx_started_tx) => {
-                anyhow::bail!("Indexer Reader Exited: {:?}", res);
-            },
-            res = self.subscribe_to_rollup(idx_started_rx, geth_http_addr, geth_poll_interval_ms, geth_pending_tx) => {
-                anyhow::bail!("Rollup subscription error: {:?}", res);
+        let indexer_res = self.start_indexer(start_slot, &block_tx, idx_started_tx);
+        let rollup_res = self.subscribe_to_rollup(
+            idx_started_rx,
+            geth_http_addr,
+            geth_poll_interval_ms,
+            geth_pending_tx,
+        );
+        let mempool_res = self.mempool_loop(geth_pending_rx);
+
+        if self.da_client.is_some() {
+            let (da_tx, da_rx) = mpsc::unbounded_channel::<DaSubmissionBlock>();
+            let state_advance_res = self.state_advance_loop(block_rx, Some(da_tx));
+            let da_submission_res = self.batch_da_submissions(da_rx);
+
+            tokio::select! {
+                res = indexer_res => {
+                    anyhow::bail!("Indexer Reader Exited: {:?}", res);
+                },
+                res = rollup_res => {
+                    anyhow::bail!("Rollup subscription error: {:?}", res);
+                }
+                res = mempool_res => {
+                    anyhow::bail!("Geth pending transactions channel closed unexpectedly: {:?}", res);
+                },
+                res = state_advance_res => {
+                    anyhow::bail!("Indexer blocks channel closed unexpectedly {:?}", res);
+                },
+                res = da_submission_res => {
+                    anyhow::bail!("DA submission channel closed unexpectedly: {:?}", res);
+                }
             }
-            res = self.mempool_loop(geth_pending_rx) => {
-                anyhow::bail!("Geth pending transactions channel closed unexpectedly: {:?}", res);
-            },
-            res = self.state_advance_loop(block_rx) => {
-                anyhow::bail!("Indexer blocks channel closed unexpectedly {:?}", res);
+        } else {
+            let state_advance_res = self.state_advance_loop(block_rx, None);
+
+            tokio::select! {
+                res = indexer_res => {
+                    anyhow::bail!("Indexer Reader Exited: {:?}", res);
+                },
+                res = rollup_res => {
+                    anyhow::bail!("Rollup subscription error: {:?}", res);
+                }
+                res = mempool_res => {
+                    anyhow::bail!("Geth pending transactions channel closed unexpectedly: {:?}", res);
+                },
+                res = state_advance_res => {
+                    anyhow::bail!("Indexer blocks channel closed unexpectedly {:?}", res);
+                },
             }
         }
     }

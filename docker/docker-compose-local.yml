@@ -30,9 +30,9 @@ services:
       start_period: 10s
 
   # Builds Rome-EVM binary with selected parameters and deploys it
-  rome-evm:
-    container_name: rome-evm
-    image: romelabs/rome-evm:${ROME_EVM_TAG:-latest}
+  rome-evm-builder:
+    container_name: rome-evm-builder
+    image: romelabs/rome-evm-builder:${ROME_EVM_TAG:-latest}
     environment:
       SOLANA_RPC: http://solana:8899
       CHAIN_ID: 1001
@@ -66,6 +66,8 @@ services:
       GENESIS_BALANCE: '1000000000000000000000000'
       GENESIS_PRIVATE_KEY: 3f37802575d0840281551d5619256a84762e8236325537e8818730082645be65
       GETH_HOST: localhost:3000
+      JWT_SECRET: a535c9f4f9df8e00cd6a15a7baa74bb92ca47ebdf59b6f3f2d8a8324b6c1767c
+      ROME_GASOMETER_URL: http://proxy:9090
     ports:
       - 443:443
       - 8545:8545
@@ -89,15 +91,15 @@ services:
     networks:
       - net
     depends_on:
-      rome-evm:
-        condition: service_completed_successfully
+      solana:
+        condition: service_healthy
       geth:
         condition: service_started
 
-  light_client:
-    container_name: light_client
+  proxy:
+    container_name: proxy
     image: romelabs/rome-apps:${PROXY_TAG:-latest}
-    hostname: light_client
+    hostname: proxy
     environment:
       SERVICE_NAME: proxy
       PROXY_CONFIG: /opt/proxy-config.yml

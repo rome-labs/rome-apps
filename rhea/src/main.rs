@@ -1,3 +1,4 @@
+use rome_da::celestia::RomeDaClient;
 use rome_sdk::Rome;
 use std::{env, fs::File, io, path::Path, sync::Arc};
 use tokio::signal;
@@ -6,13 +7,16 @@ use url::Url;
 use self::service::RheaService;
 use anyhow::bail;
 use dotenv::dotenv;
+use ethers::types::Address;
 use rome_sdk::rome_evm_client::indexer::indexer::Indexer;
+use rome_sdk::rome_evm_client::RomeEVMClient;
 use rome_sdk::rome_geth::engine::{config::GethEngineConfig, GethEngine};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::{
     commitment_config::CommitmentLevel, signature::read_keypair_file, signer::Signer,
 };
+use tokio_util::sync::CancellationToken;
 
 mod service;
 
@@ -27,7 +31,10 @@ pub struct Config {
     pub geth_engine_addr: String,
     pub geth_engine_secret: String,
     pub geth_poll_interval_ms: u64,
+    pub celestia_url: Option<String>,
+    pub celestia_token: Option<String>,
     pub start_slot: Option<u64>,
+    pub fee_recipient: Option<Address>,
 }
 
 pub fn load_config<T, P>(config_file: P) -> Result<T, io::Error>
@@ -86,10 +93,37 @@ async fn main() -> anyhow::Result<()> {
             .expect("Failed to read slot number from solana"),
     );
 
+    if let Some(fee_recipient) = config.fee_recipient {
+        let payer = Arc::new(read_keypair_file(&config.payer_keypair)
+            .expect("Failed to read payer keypair file"));
+
+        RomeEVMClient::new(
+            config.chain_id, program_id, payer, client.clone(), config.number_holders,
+            CommitmentLevel::Confirmed, CancellationToken::new(),
+        )
+            .reg_gas_recipient(fee_recipient)
+            .expect("Failed to register fee recipient");
+    }
+
     let indexer = Indexer::new(program_id, client, commitment);
     tracing::info!("Initialized Indexer");
 
-    let rhea_service = RheaService::new(rome, geth_engine, indexer.clone())?;
+    let mut da_client: Option<RomeDaClient> = None;
+    if config.celestia_url.is_some() && config.celestia_token.is_some() {
+        let celestia_url =
+            Url::parse(&config.celestia_url.unwrap()).expect("celestia_url should be set");
+        let celestia_token = config.celestia_token.unwrap();
+
+        da_client = Some(RomeDaClient::new(
+            celestia_url,
+            "".to_string(),
+            celestia_token,
+            config.chain_id,
+        )?);
+        tracing::info!("Initialized Da client");
+    }
+
+    let rhea_service = RheaService::new(rome, geth_engine, indexer.clone(), da_client)?;
     tracing::info!("Initialized RheaService");
 
     tokio::select! {

@@ -9,7 +9,7 @@ COPY ./rome-sdk /opt/rome-sdk
 COPY ./rome-apps /opt/rome-apps
 
 WORKDIR /opt/rome-apps/
-RUN CHAIN_ID=1001 CONTRACT_OWNER=8q76RPN5Tm6thVoQAUFhUP2diddGgtDLA6B6eShSazB2 cargo build --release
+RUN CHAIN_ID=1001 CONTRACT_OWNER=8q76RPN5Tm6thVoQAUFhUP2diddGgtDLA6B6eShSazB2 RUSTFLAGS="-D warnings" cargo build --release
 
 FROM ubuntu:22.04 AS runtime
 RUN apt update && apt install -y ca-certificates wget libssl3 libssl-dev

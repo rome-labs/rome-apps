@@ -29,6 +29,8 @@ solana-client = { workspace = true }
 
 # rome
 rome-sdk = { workspace = true }
+rome-da = { workspace = true }
 
 # evm
 ethers = { workspace = true }
+futures = "0.3.30"

@@ -33,6 +33,7 @@ async-trait = "0.1.80"
 
 # rome
 rome-sdk = { path = "../rome-sdk/rome-sdk" }
+rome-da = { path = "../rome-sdk/rome-da" }
 
 # evm
 ethers = "2.0.14"

@@ -1,0 +1,83 @@
+name: build_docker_image
+
+on:
+  workflow_call:
+    inputs:
+      rome_evm_ref_name:
+        type: string
+        description: 'rome-evm branch name to use for building the image'
+        required: true
+        default: 'master'
+      rome_sdk_ref_name:
+        type: string
+        description: 'rome-sdk branch name to use for building the image'
+        required: true
+        default: 'main'
+      rome_apps_ref_name:
+        type: string
+        description: 'rome-apps branch name to use for building the image'
+        required: false
+        default: 'main'
+
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Prepare environment variables from input'
+        id: prepare_env
+        run: |
+          rome_evm_ref_name='${{ inputs.rome_evm_ref_name || 'master' }}'
+          rome_sdk_ref_name='${{ inputs.rome_sdk_ref_name || 'main' }}'
+          rome_apps_ref_name='${{ inputs.rome_apps_ref_name || 'main' }}'
+          echo "ROME_EVM_REF_NAME=$rome_evm_ref_name" >> $GITHUB_ENV
+          echo "ROME_SDK_REF_NAME=$rome_sdk_ref_name" >> $GITHUB_ENV
+          echo "ROME_APPS_REF_NAME=$rome_apps_ref_name" >> $GITHUB_ENV
+
+      - name: Install Compose
+        uses: ndeloof/install-compose-action@v0.0.1
+        with:
+          version: v2.1.0 # defaults to 'latest'
+          legacy: true    # will also install in PATH as `docker-compose`
+
+      - name: Check Docker Compose version
+        run: docker-compose --version
+
+      - name: 'Checkout rome-evm repository'
+        uses: actions/checkout@main
+        with:
+          repository: rome-labs/rome-evm
+          path: rome-evm
+          ref: ${{env.ROME_EVM_REF_NAME}}
+          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+
+      - name: 'Checkout rome-sdk repository'
+        uses: actions/checkout@main
+        with:
+          repository: rome-labs/rome-sdk
+          path: rome-sdk
+          ref: ${{env.ROME_SDK_REF_NAME}}
+          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+
+      - name: 'Checkout rome-apps repository'
+        uses: actions/checkout@v4
+        with:
+          path: rome-apps
+          ref: ${{env.ROME_APPS_REF_NAME}}
+          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+
+      - name: 'Login to Docker Hub'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: 'Build rome-apps image'
+        uses: docker/build-push-action@v4.0.0
+        with:
+          context: .
+          push: true
+          file: rome-apps/docker/Dockerfile
+          tags: romelabs/rome-apps:${{env.ROME_APPS_REF_NAME}}
+          labels: romelabs/rome-apps:${{env.ROME_APPS_REF_NAME}}

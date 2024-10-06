@@ -4,7 +4,7 @@ services:
   # Builds Rome-EVM binary with selected parameters and deploys it
   rome-evm:
     container_name: rome-evm
-    image: romelabs/rome-evm:${ROME_EVM_TAG:-latest}
+    image: romelabs/rome-evm-builder:${ROME_EVM_TAG:-latest}
     environment:
       SOLANA_RPC: ${SOLANA_RPC}
       CHAIN_ID: ${CHAIN_ID}
@@ -29,6 +29,8 @@ services:
       GENESIS_BALANCE: ${GENESIS_BALANCE}
       GENESIS_PRIVATE_KEY: ${GENESIS_PRIVATE_KEY}
       GETH_HOST: ${GETH_HOST}
+      JWT_SECRET: ${JWT_SECRET}
+      ROME_GASOMETER_URL: ${GASOMETER_HOST}
     volumes:
       - /etc/letsencrypt/live/${GETH_HOST}/fullchain.pem:/etc/nginx/ssl/selfsigned.crt
       - /etc/letsencrypt/live/${GETH_HOST}/privkey.pem:/etc/nginx/ssl/selfsigned.key
@@ -58,10 +60,10 @@ services:
       geth:
         condition: service_started
 
-  light_client:
-    container_name: light_client
+  proxy:
+    container_name: proxy
     image: romelabs/rome-apps:${PROXY_TAG:-latest}
-    hostname: light_client
+    hostname: proxy
     environment:
       SERVICE_NAME: proxy
       PROXY_CONFIG: /opt/proxy-config.yml
