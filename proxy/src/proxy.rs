@@ -35,17 +35,21 @@ impl Proxy {
         info!("Rome-EVM Program id: {:?}", program_id);
         info!("Proxy operator wallet: {:?}", payer.pubkey());
 
-        Self {
-            rome_evm_client: Arc::new(RomeEVMClient::new(
-                config.chain_id,
-                program_id,
-                payer,
-                client,
-                config.number_holders,
-                config.commitment_level,
-                token,
-            )),
+        let rome_evm_client = Arc::new(RomeEVMClient::new(
+            config.chain_id,
+            program_id,
+            payer,
+            client,
+            config.number_holders,
+            config.commitment_level,
+            token,
+        ));
+
+        if let Some(fee_recipient) = config.fee_recipient {
+            rome_evm_client.reg_gas_recipient(fee_recipient).expect("Failed to register fee recipient");
         }
+
+        Self { rome_evm_client }
     }
 
     pub async fn start(self, start_slot: u64) {

@@ -1,4 +1,5 @@
 use {
+    ethers::types::Address,
     solana_sdk::commitment_config::CommitmentLevel,
     std::{fs::File, io, path::Path},
 };
@@ -14,6 +15,7 @@ pub struct Config {
     pub host: String,
     pub number_holders: u64,
     pub start_slot: Option<u64>,
+    pub fee_recipient: Option<Address>,
 }
 
 pub fn load_config<T, P>(config_file: P) -> Result<T, io::Error>

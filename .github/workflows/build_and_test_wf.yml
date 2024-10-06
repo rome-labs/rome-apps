@@ -1,0 +1,105 @@
+name: Build apps and run tests
+
+on:
+  push:
+
+jobs:
+  prepare_env:
+    runs-on: ubuntu-latest
+    env:
+      # Set the Branch/Ref of the github repositories to be used for building the image
+      ROME_TESTS_REF_NAME: "main" # If updating this, also update the uses in the job call-reusable-workflow-tests
+      ROME_SDK_REF_NAME: "main"
+      ROME_EVM_REF_NAME: "main"
+
+      ROME_APPS_REF_NAME: ${{github.ref_name}} # If updating this, also update the uses in the job reusable-wf-build at bottom of this file
+      
+      # Set the versions of the various images to run tests against
+      EVM_VERSION: "latest"
+      # APPS_VERSION: "latest" # this is calculated based on current branch name as docker image is tagged with branch name
+      GETH_VERSION: "latest"
+      TESTS_VERSION: "latest"
+      UNISWAP_VERSION: "latest"
+      OPENZEPPELIN_VERSION: "latest"
+
+      # Set the tests list to run 
+      TESTS_LIST: "cross_rollup,uniswap_geth,uniswap_proxy"
+
+    outputs:
+      docker_image_tags: ${{ steps.prepare_docker_image_tags.outputs.docker_image_tags }}
+      tests_list: ${{ steps.prepare_tests_list.outputs.tests_list }}
+      rome_tests_ref_name: ${{ steps.set_rome_tests_ref.outputs.rome_tests_ref_name }}
+      rome_evm_ref_name: ${{ steps.set_rome_tests_ref.outputs.rome_evm_ref_name }}
+      rome_sdk_ref_name: ${{ steps.set_rome_tests_ref.outputs.rome_sdk_ref_name }}
+      rome_apps_ref_name: ${{ steps.set_rome_tests_ref.outputs.rome_apps_ref_name }}
+
+    steps:
+      - name: 'Prepare Docker Image Tags Input'
+        id: prepare_docker_image_tags
+        run: |
+          # Use environment variables if available, otherwise default to 'latest'
+          evm_ver="${{ env.EVM_VERSION || 'latest' }}"
+          apps_ver="${{ env.ROME_APPS_REF_NAME || 'latest' }}"
+          geth_ver="${{ env.GETH_VERSION || 'latest' }}"
+          tests_ver="${{ env.TESTS_VERSION || 'latest' }}"
+          uniswap_ver="${{ env.UNISWAP_VERSION || 'latest' }}"
+          openzeppelin_ver="${{ env.OPENZEPPELIN_VERSION || 'latest' }}"
+          
+          # Create JSON object for docker_image_tags using environment variables
+          docker_image_tags=$(echo "{\"evm\": \"$evm_ver\", \"apps\": \"$apps_ver\", \"geth\": \"$geth_ver\", \"tests\": \"$tests_ver\", \"uniswap\": \"$uniswap_ver\", \"openzeppelin\": \"$openzeppelin_ver\"}")
+          
+          echo "Docker image tags: $docker_image_tags"
+          echo "docker_image_tags=$docker_image_tags" >> $GITHUB_OUTPUT
+
+      - name: 'Prepare Tests List Input'
+        id: prepare_tests_list
+        run: |
+          # Use TESTS_LIST environment variable or fallback to 'cross_rollup'
+          tests_list="${{ env.TESTS_LIST || 'cross_rollup' }}"
+          
+          echo "Tests list: $tests_list"
+          echo "tests_list=$tests_list" >> $GITHUB_OUTPUT
+
+      - name: 'Set REF NAME'
+        id: set_rome_tests_ref
+        run: |
+          echo "rome_tests_ref_name=${{ env.ROME_TESTS_REF_NAME || 'main' }}" >> $GITHUB_OUTPUT
+          echo "rome_evm_ref_name=${{ env.ROME_EVM_REF_NAME || 'main' }}" >> $GITHUB_OUTPUT
+          echo "rome_sdk_ref_name=${{ env.ROME_SDK_REF_NAME || 'main' }}" >> $GITHUB_OUTPUT
+          echo "rome_apps_ref_name=${{ env.ROME_APPS_REF_NAME || 'main' }}" >> $GITHUB_OUTPUT
+
+  reusable-wf-build:
+    uses: ./.github/workflows/reusable_wf_build.yml
+    needs: prepare_env
+    secrets: inherit
+    with:
+      rome_evm_ref_name: ${{ needs.prepare_env.outputs.rome_evm_ref_name }}
+      rome_sdk_ref_name: ${{ needs.prepare_env.outputs.rome_sdk_ref_name }}
+      rome_apps_ref_name: ${{ needs.prepare_env.outputs.rome_apps_ref_name }}
+      
+  reusable-wf-tests:
+    uses: rome-labs/tests/.github/workflows/reusable_wf_tests.yml@main
+    needs: [prepare_env, reusable-wf-build]
+    secrets: inherit
+    with:
+      docker_image_tags: ${{ needs.prepare_env.outputs.docker_image_tags }}
+      tests_list: ${{ needs.prepare_env.outputs.tests_list }}
+      rome_tests_ref_name: ${{ needs.prepare_env.outputs.rome_tests_ref_name || 'main' }}
+  
+  update-latest-tag:
+    runs-on: ubuntu-latest
+    needs: [prepare_env, reusable-wf-tests, reusable-wf-build]
+    if: ${{needs.prepare_env.outputs.rome_apps_ref_name == 'main'}}
+    steps:
+      - name: 'Login to Docker Hub'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: 'Set latest tag'
+        run: |
+          docker pull romelabs/rome-apps:${{ needs.prepare_env.outputs.rome_apps_ref_name }}
+          docker tag romelabs/rome-apps:${{ needs.prepare_env.outputs.rome_apps_ref_name }} romelabs/rome-apps:latest
+          docker push romelabs/rome-apps:latest
+        

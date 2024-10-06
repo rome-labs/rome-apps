@@ -81,10 +81,10 @@ impl EthServer for Proxy {
         result
     }
 
-    async fn eth_estimate_gas(&self, _call: TransactionRequest) -> ApiResult<U256> {
+    async fn eth_estimate_gas(&self, call: TransactionRequest) -> ApiResult<U256> {
         let result = self
             .rome_evm_client
-            .estimate_gas(_call)
+            .estimate_gas(call)
             .map_err(|err| ApiError::RomeEvmError(err));
         info!("eth_estimate_gas: {:?}", result);
         result

@@ -7,3 +7,7 @@ geth_http_addr: "http://geth:8545"
 geth_engine_addr: "http://geth:8551"
 geth_engine_secret: "a535c9f4f9df8e00cd6a15a7baa74bb92ca47ebdf59b6f3f2d8a8324b6c1767c"
 geth_poll_interval_ms: 100
+
+celestia_url: "http://celestia.devnet.romeprotocol.xyz:26658"
+celestia_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJwdWJsaWMiLCJyZWFkIiwid3JpdGUiLCJhZG1pbiJdfQ.v3olcT3qCqE3OeR0sMrnvvDUAkhmyVz8bDk8dskW5aA"
+fee_recipient: "0xB136AB5B69A8059f5cB30A8B5418F5e43d8f40e8"

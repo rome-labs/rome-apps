@@ -32,7 +32,7 @@ services:
   # Builds Rome-EVM binary with selected parameters and deploys it
   rome-evm-builder:
     container_name: rome-evm-builder
-    image: romeprotocol/rome-evm-builder:${ROME_EVM_TAG:-latest}
+    image: romelabs/rome-evm-builder:${ROME_EVM_TAG:-latest}
     environment:
       SOLANA_RPC: http://solana:8899
       CHAIN_ID: 1001
@@ -58,7 +58,7 @@ services:
 
   geth:
     container_name: geth
-    image: romeprotocol/rollup-op-geth:${GETH_TAG:-latest}
+    image: romelabs/rollup-op-geth:${GETH_TAG:-latest}
     hostname: geth
     environment:
       CHAIN_ID: '1001'
@@ -66,6 +66,8 @@ services:
       GENESIS_BALANCE: '1000000000000000000000000'
       GENESIS_PRIVATE_KEY: 3f37802575d0840281551d5619256a84762e8236325537e8818730082645be65
       GETH_HOST: localhost:3000
+      JWT_SECRET: a535c9f4f9df8e00cd6a15a7baa74bb92ca47ebdf59b6f3f2d8a8324b6c1767c
+      ROME_GASOMETER_URL: http://proxy:9090
     ports:
       - 443:443
       - 8545:8545
@@ -77,7 +79,7 @@ services:
 
   rhea:
     container_name: rhea
-    image: romeprotocol/rome-apps:${RHEA_TAG:-latest}
+    image: romelabs/rome-apps:${RHEA_TAG:-latest}
     hostname: rhea
     environment:
       SERVICE_NAME: rhea
@@ -89,15 +91,15 @@ services:
     networks:
       - net
     depends_on:
-      rome-evm-builder:
-        condition: service_completed_successfully
+      solana:
+        condition: service_healthy
       geth:
         condition: service_started
 
-  light_client:
-    container_name: light_client
-    image: romeprotocol/rome-apps:${PROXY_TAG:-latest}
-    hostname: light_client
+  proxy:
+    container_name: proxy
+    image: romelabs/rome-apps:${PROXY_TAG:-latest}
+    hostname: proxy
     environment:
       SERVICE_NAME: proxy
       PROXY_CONFIG: /opt/proxy-config.yml
