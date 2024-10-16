@@ -1,70 +1,96 @@
 mod api;
+mod cli;
 mod config;
-pub mod proxy;
+mod proxy;
 
-use {
-    crate::{api::EthServer, config::load_config},
-    fast_log::{
-        consts::LogSize,
-        plugin::{file_split::RollingType, packer::LogPacker},
-        Config, Logger,
-    },
-    jsonrpsee::server::{RpcModule, ServerBuilder},
-    log::{info, LevelFilter, Log},
-    proxy::Proxy,
-    std::{env, net::SocketAddr},
-    tokio::signal,
-    tokio_util::sync::CancellationToken,
-};
+use std::sync::Arc;
 
-#[tokio::main(flavor = "multi_thread", worker_threads = 10)]
-async fn main() {
-    let config_path = env::var("PROXY_CONFIG").expect("PROXY_CONFIG is not set");
-    let config: config::Config = load_config(config_path).expect("load config error");
-    let start_slot = config.start_slot.unwrap_or(0);
+use self::cli::Cli;
+use clap::Parser;
+use proxy::Proxy;
+use rome_sdk::rome_evm_client::RomeEVMClient;
+use rome_sdk::rome_solana::indexers::clock::SolanaClockIndexer;
+use rome_sdk::rome_solana::payer::SolanaKeyPayer;
+use rome_sdk::rome_solana::tower::SolanaTower;
+use solana_sdk::signer::Signer;
+use tokio::signal;
 
-    let logger: &'static Logger = fast_log::init(
-        Config::new()
-            .console()
-            .file_split(
-                &config.log,
-                LogSize::KB(512),
-                RollingType::All,
-                LogPacker {},
-            )
-            .level(LevelFilter::Info),
-    )
-    .expect("log init error");
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // load any .env and init the logger
+    dotenv::dotenv().ok();
+    tracing_subscriber::fmt().init();
 
-    let url = config
-        .host
-        .parse::<SocketAddr>()
-        .expect("incorrect host url");
-    info!("Start proxy: local address {}", url);
-    logger.flush();
+    // Parse the cli arguments and load the config
+    let config = Cli::parse().load_config().await?;
 
-    let rpc = ServerBuilder::default()
-        .build(url)
-        .await
-        .expect("server start error");
+    // Crete solana rpc client
+    let rpc_client = Arc::new(config.solana.clone().into_async_client());
+    // parse the program id
+    let program_id = SolanaKeyPayer::read_from_file(&config.program_keypair)
+        .await?
+        .pubkey();
 
-    let token = CancellationToken::new();
-    let proxy = Proxy::new(config, token.clone()).await;
+    // solana clock indexer
+    let solana_clock_indexer = SolanaClockIndexer::new(rpc_client.clone()).await?;
+    // start the clock
+    let solana_clock_indexer_jh = tokio::spawn(solana_clock_indexer.clone().start());
 
-    let mut module = RpcModule::new(());
-    module
-        .merge(EthServer::into_rpc(proxy.clone()))
-        .expect("proxy impl error");
+    // Parse the sync rpc client
+    let solana = SolanaTower::new(rpc_client, solana_clock_indexer.get_current_clock());
 
-    let handle = rpc.start(module);
+    // Parse the payer keypair
+    let payer = SolanaKeyPayer::read_from_file(&config.payer_keypair)
+        .await?
+        .into_keypair()
+        .into();
+
+    // create rome evm client
+    let rome_evm_client = Arc::new(RomeEVMClient::new(
+        config.chain_id,
+        program_id,
+        solana,
+        config.solana.commitment,
+    ));
+
+    // Get the start slot
+    let start_slot = config.start_slot.unwrap_or_default();
+    let (idx_started_oneshot, idx_started_recv) = tokio::sync::oneshot::channel();
+
+    // Start the indexer
+    let indexer_jh = {
+        let rome_evm_client = rome_evm_client.clone();
+
+        tokio::spawn(async move {
+            tracing::info!("Starting indexer, waiting to catch up..");
+
+            rome_evm_client
+                .clone()
+                .start_indexing(start_slot, Some(idx_started_oneshot))
+                .await;
+        })
+    };
 
     tokio::select! {
-        _ = proxy.start(start_slot) => {},
-        _ = signal::ctrl_c() => {
-            info!("Shutdown..");
-            token.cancel();
-        }
+        _ = idx_started_recv => {
+            tracing::info!("Indexer caught up..")
+        },
     }
 
-    handle.stop().expect("server stop error");
+    // Start the proxy server
+    let _server = Proxy::new(rome_evm_client, payer)
+        .start_rpc_server(config.proxy_host)
+        .await?;
+
+    tokio::select! {
+        res = indexer_jh => {
+            anyhow::bail!("Indexer exited unexpectedly {:?}", res)
+        },
+        res = solana_clock_indexer_jh => {
+            anyhow::bail!("Solana Tower exit.. {:?}", res)
+        },
+        _ = signal::ctrl_c() => {
+            anyhow::bail!("Shutdown..")
+        }
+    }
 }

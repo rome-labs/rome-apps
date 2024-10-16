@@ -1,30 +1,17 @@
-use {
-    ethers::types::Address,
-    solana_sdk::commitment_config::CommitmentLevel,
-    std::{fs::File, io, path::Path},
-};
+use std::net::SocketAddr;
+use ethers::types::Address;
+use std::path::PathBuf;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Default, Clone)]
-pub struct Config {
+use rome_sdk::rome_solana::config::SolanaConfig;
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct ProxyConfig {
     pub chain_id: u64,
-    pub solana_url: String,
-    pub commitment_level: CommitmentLevel,
-    pub program_id_keypair: String,
-    pub payer_keypair: String,
-    pub log: String,
-    pub host: String,
-    pub number_holders: u64,
     pub start_slot: Option<u64>,
+    pub solana: SolanaConfig,
+    pub program_keypair: PathBuf,
+    pub payer_keypair: PathBuf,
+    pub number_holders: u64,
+    pub proxy_host: SocketAddr,
     pub fee_recipient: Option<Address>,
-}
-
-pub fn load_config<T, P>(config_file: P) -> Result<T, io::Error>
-where
-    T: serde::de::DeserializeOwned,
-    P: AsRef<Path>,
-{
-    let file = File::open(config_file).expect("config file not found");
-    let config = serde_yaml::from_reader(file)
-        .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))?;
-    Ok(config)
 }

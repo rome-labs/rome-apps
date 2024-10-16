@@ -84,6 +84,12 @@ pub trait Eth {
         block_number: BlockId,
         flag: bool,
     ) -> ApiResult<Option<BlockType>>;
+    #[method(name = "eth_getBlockByHash")]
+    async fn eth_get_block_by_hash(
+        &self,
+        block_hash: H256,
+        flag: bool,
+    ) -> ApiResult<Option<BlockType>>;
     #[method(name = "eth_call")]
     async fn eth_call(&self, call: TransactionRequest, block: String) -> ApiResult<Bytes>;
     #[method(name = "eth_getTransactionCount")]

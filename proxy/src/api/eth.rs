@@ -9,7 +9,6 @@ use {
         Address, BlockId, Bytes, FeeHistory, Transaction, TransactionReceipt, TransactionRequest,
         TxHash, H256, U256, U64,
     },
-    log::info,
     rome_sdk::rome_evm_client::indexer::{
         ethereum_block_storage::BlockType, transaction_data::TransactionData,
     },
@@ -21,14 +20,14 @@ impl EthServer for Proxy {
         let result = self
             .rome_evm_client
             .get_balance(address)
-            .map_err(|err| ApiError::RomeEvmError(err))?;
-        info!("eth_get_balance: {:?} {:?}", address, result);
+            .map_err(ApiError::RomeEvmError)?;
+        tracing::info!("eth_get_balance: {:?} {:?}", address, result);
         Ok(result)
     }
 
     async fn eth_chain_id(&self) -> ApiResult<U64> {
         let result = self.rome_evm_client.chain_id();
-        info!("eth_chain_id: {:?}", result);
+        tracing::info!("eth_chain_id: {:?}", result);
         Ok(result.into())
     }
 
@@ -36,8 +35,9 @@ impl EthServer for Proxy {
         let result = self
             .rome_evm_client
             .block_number()
-            .map_err(|err| ApiError::RomeEvmError(err));
-        info!("eth_block_number: {:?}", result);
+            .await
+            .map_err(ApiError::RomeEvmError);
+        tracing::info!("eth_block_number: {:?}", result);
         result
     }
 
@@ -45,8 +45,8 @@ impl EthServer for Proxy {
         let result = self
             .rome_evm_client
             .gas_price()
-            .map_err(|err| ApiError::RomeEvmError(err));
-        info!("eth_gas_price: {:?}", result);
+            .map_err(ApiError::RomeEvmError);
+        tracing::info!("eth_gas_price: {:?}", result);
         result
     }
 
@@ -58,17 +58,32 @@ impl EthServer for Proxy {
         let result = self
             .rome_evm_client
             .get_block(block_number, full_transactions)
-            .map_err(|err| ApiError::RomeEvmError(err));
-        info!("eth_get_block_by_number {:?}", block_number);
+            .await
+            .map_err(ApiError::RomeEvmError);
+        tracing::info!("eth_get_block_by_number {:?}", block_number);
+        result
+    }
+
+    async fn eth_get_block_by_hash(
+        &self,
+        block_hash: H256,
+        full_transactions: bool,
+    ) -> ApiResult<Option<BlockType>> {
+        let result = self
+            .rome_evm_client
+            .get_block(BlockId::Hash(block_hash), full_transactions)
+            .await
+            .map_err(ApiError::RomeEvmError);
+        tracing::info!("eth_get_block_by_hash {:?}", block_hash);
         result
     }
 
     async fn eth_call(&self, call: TransactionRequest, _block: String) -> ApiResult<Bytes> {
         let result = self
             .rome_evm_client
-            .call(call)
-            .map_err(|err| ApiError::RomeEvmError(err));
-        info!("eth_call: {:?}", result);
+            .call(&call)
+            .map_err(ApiError::RomeEvmError);
+        tracing::info!("eth_call: {:?}", result);
         result
     }
 
@@ -76,17 +91,17 @@ impl EthServer for Proxy {
         let result = self
             .rome_evm_client
             .transaction_count(address)
-            .map_err(|err| ApiError::RomeEvmError(err));
-        info!("eth_get_transaction_count: {:?}, {:?}", address, result);
+            .map_err(ApiError::RomeEvmError);
+        tracing::info!("eth_get_transaction_count: {:?}, {:?}", address, result);
         result
     }
 
     async fn eth_estimate_gas(&self, call: TransactionRequest) -> ApiResult<U256> {
         let result = self
             .rome_evm_client
-            .estimate_gas(call)
-            .map_err(|err| ApiError::RomeEvmError(err));
-        info!("eth_estimate_gas: {:?}", result);
+            .estimate_gas(&call)
+            .map_err(ApiError::RomeEvmError);
+        tracing::info!("eth_estimate_gas: {:?}", result);
         result
     }
 
@@ -94,24 +109,25 @@ impl EthServer for Proxy {
         let result = self
             .rome_evm_client
             .get_code(address)
-            .map_err(|err| ApiError::RomeEvmError(err));
-        info!("eth_get_code: {:?} {:?}", address, result);
+            .map_err(ApiError::RomeEvmError);
+        tracing::info!("eth_get_code: {:?} {:?}", address, result);
         result
     }
 
     async fn eth_send_raw_transaction(&self, rlp: Bytes) -> ApiResult<TxHash> {
         let result = self
             .rome_evm_client
-            .send_transaction(rlp)
+            .send_transaction(rlp, &self.payer)
             .await
             .map_err(|e| e.into());
-        info!("eth_send_raw_transaction: {:?}", result);
+
+        tracing::info!("eth_send_raw_transaction: {:?}", result);
         result
     }
 
     async fn net_version(&self) -> ApiResult<U64> {
         let result = self.rome_evm_client.chain_id();
-        info!("net_version: {result}");
+        tracing::info!("net_version: {result}");
         Ok(result.into())
     }
 
@@ -123,9 +139,10 @@ impl EthServer for Proxy {
         let result = self
             .rome_evm_client
             .process_transaction(tx_hash, func)
+            .await
             .map_err(|e| e.into());
 
-        info!("eth_get_transaction_receipt({:?}): {:?}", tx_hash, result);
+        tracing::info!("eth_get_transaction_receipt({:?}): {:?}", tx_hash, result);
         result
     }
 
@@ -134,9 +151,10 @@ impl EthServer for Proxy {
         let result = self
             .rome_evm_client
             .process_transaction(tx_hash, func)
+            .await
             .map_err(|e| e.into());
 
-        info!("eth_get_transaction_by_hash({:?}): {:?}", tx_hash, result);
+        tracing::info!("eth_get_transaction_by_hash({:?}): {:?}", tx_hash, result);
         result
     }
 
@@ -149,9 +167,10 @@ impl EthServer for Proxy {
         let result = self
             .rome_evm_client
             .fee_history(count, block_number, reward_percentiles)
-            .map_err(|e| ApiError::from(e));
+            .await
+            .map_err(ApiError::from);
 
-        info!("eth_fee_history({:?}): {:?}", block_number, result);
+        tracing::info!("eth_fee_history({:?}): {:?}", block_number, result);
         result
     }
 }

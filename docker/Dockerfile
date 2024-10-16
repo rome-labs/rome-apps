@@ -9,16 +9,17 @@ COPY ./rome-sdk /opt/rome-sdk
 COPY ./rome-apps /opt/rome-apps
 
 WORKDIR /opt/rome-apps/
-RUN CHAIN_ID=1001 CONTRACT_OWNER=8q76RPN5Tm6thVoQAUFhUP2diddGgtDLA6B6eShSazB2 RUSTFLAGS="-D warnings" cargo build --release
+RUN RUSTFLAGS="-D warnings" cargo build --release
 
 FROM ubuntu:22.04 AS runtime
-RUN apt update && apt install -y ca-certificates wget libssl3 libssl-dev
+RUN apt update && apt install -y ca-certificates wget libssl3 libssl-dev curl
 
 COPY --from=solana /usr/bin/solana /usr/bin/solana
 COPY --from=builder /opt/rome-apps/target/release/proxy /opt/
 COPY --from=builder /opt/rome-apps/target/release/rhea /opt/
-COPY --from=builder /opt/rome-apps/target/release/hercules /opt/
+COPY --from=builder /opt/rome-apps/target/release/cli /opt/
 COPY ./rome-apps/docker/entrypoint.sh /opt/
+COPY ./rome-apps/docker/cli.sh /opt/
 
 WORKDIR /opt
 

@@ -1,0 +1,19 @@
+{
+  "chain_id": 1001,
+  "solana": {
+    "rpc_url": "http://localhost:8899",
+    "commitment": "confirmed"
+  },
+  "geth_engine": {
+    "geth_engine_addr": "http://localhost:8545",
+    "geth_engine_secret": ""
+  },
+  "program_keypair": "../rome-config/keys/evm.json",
+  "payer_keypair": "../rome-config/keys/payer.json",
+  "number_holders": 10,
+  "geth_indexer": {
+    "geth_http_addr": "http://localhost:8545",
+    "geth_poll_interval_ms": 1000
+  },
+  "proxy_host": "[::]:8545"
+}

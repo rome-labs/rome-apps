@@ -1,117 +1,101 @@
+use clap::Parser;
 use rome_da::celestia::RomeDaClient;
-use rome_sdk::Rome;
-use std::{env, fs::File, io, path::Path, sync::Arc};
-use tokio::signal;
-use url::Url;
+use rome_sdk::rome_solana::payer::SolanaKeyPayer;
 
+use rome_sdk::Rome;
+use tokio::signal;
+
+use self::cli::Cli;
+use self::config::RheaConfig;
 use self::service::RheaService;
 use anyhow::bail;
 use dotenv::dotenv;
-use ethers::types::Address;
-use rome_sdk::rome_evm_client::indexer::indexer::Indexer;
-use rome_sdk::rome_evm_client::RomeEVMClient;
-use rome_sdk::rome_geth::engine::{config::GethEngineConfig, GethEngine};
-use solana_client::rpc_client::RpcClient;
-use solana_sdk::commitment_config::CommitmentConfig;
-use solana_sdk::{
-    commitment_config::CommitmentLevel, signature::read_keypair_file, signer::Signer,
-};
-use tokio_util::sync::CancellationToken;
+use rome_sdk::rome_evm_client::{indexer::indexer::Indexer, RomeEVMClient as Client};
+use rome_sdk::rome_geth::engine::GethEngine;
+use rome_sdk::rome_solana::indexers::clock::SolanaClockIndexer;
+use rome_sdk::rome_solana::tower::SolanaTower;
+use solana_sdk::signer::Signer;
+use std::sync::Arc;
 
+mod cli;
+mod config;
 mod service;
-
-#[derive(serde::Serialize, serde::Deserialize, Debug, Default, Clone)]
-pub struct Config {
-    pub chain_id: u64,
-    pub solana_url: String,
-    pub program_id_keypair: String,
-    pub payer_keypair: String,
-    pub number_holders: u64,
-    pub geth_http_addr: String,
-    pub geth_engine_addr: String,
-    pub geth_engine_secret: String,
-    pub geth_poll_interval_ms: u64,
-    pub celestia_url: Option<String>,
-    pub celestia_token: Option<String>,
-    pub start_slot: Option<u64>,
-    pub fee_recipient: Option<Address>,
-}
-
-pub fn load_config<T, P>(config_file: P) -> Result<T, io::Error>
-where
-    T: serde::de::DeserializeOwned,
-    P: AsRef<Path>,
-{
-    let file = File::open(config_file).expect("config file not found");
-    let config = serde_yaml::from_reader(file)
-        .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))?;
-    Ok(config)
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     tracing_subscriber::fmt().init();
 
-    let config_path = env::var("RHEA_CONFIG").expect("RHEA_CONFIG is not set");
-    let config: Config = load_config(config_path).expect("load config error");
-    let rpc_url = Url::parse(&config.solana_url).expect("solana rpc url should be set");
-    let commitment = CommitmentLevel::Confirmed;
-    let program_id = read_keypair_file(Path::new(&config.program_id_keypair))
-        .expect("read program_id keypair error")
+    // get the config
+    let config: RheaConfig = Cli::parse().load_config().await?;
+
+    // get the program id
+    let program_id = SolanaKeyPayer::read_from_file(&config.program_keypair)
+        .await?
         .pubkey();
 
-    let geth_engine_config = GethEngineConfig {
-        geth_engine_addr: Url::parse(&config.geth_engine_addr).expect("geth url should be set"),
-        geth_engine_secret: config.geth_engine_secret,
-    };
-    let geth_engine =
-        GethEngine::new(geth_engine_config).expect("geth_engine should be constructed");
-    tracing::info!("Initialized Geth engine");
-
-    let rome_config = rome_sdk::RomeConfig {
-        solana_config: rome_sdk::rome_solana::config::SolanaConfig {
-            rpc_url: rpc_url.clone(),
-            commitment,
-        },
+    // Create the Rome instance
+    let rome = Rome::new_with_config(rome_sdk::RomeConfig {
+        solana_config: config.solana.clone(),
         rollups: vec![(config.chain_id, program_id.to_string())]
             .into_iter()
             .collect(),
-        payer_path: Path::new(&config.payer_keypair).to_path_buf(),
-    };
-    let rome = Rome::new_with_config(rome_config).await?;
-    tracing::info!("Initialized Rome with config");
+        payer_path: config.payer_keypair.clone(),
+        holder_count: config.number_holders,
+    })
+    .await?;
 
-    let client = Arc::new(RpcClient::new_with_commitment(
-        rpc_url,
-        CommitmentConfig { commitment },
+    // Create the Geth Engine
+    let geth_engine =
+        GethEngine::new(config.geth_engine).expect("geth_engine should be constructed");
+
+    // Get the start slot
+    let start_slot = config
+        .start_slot
+        .unwrap_or_else(|| rome.solana().clock().get_current_slot());
+
+    // Create the indexer
+    let indexer = Arc::new(Indexer::new(
+        program_id,
+        rome.solana().client_cloned(),
+        config.solana.commitment,
+        config.chain_id,
     ));
 
-    let start_slot = config.start_slot.unwrap_or(
-        client
-            .get_slot()
-            .expect("Failed to read slot number from solana"),
-    );
-
+    // Register the gas recipient address
     if let Some(fee_recipient) = config.fee_recipient {
-        let payer = Arc::new(read_keypair_file(&config.payer_keypair)
-            .expect("Failed to read payer keypair file"));
-
-        RomeEVMClient::new(
-            config.chain_id, program_id, payer, client.clone(), config.number_holders,
-            CommitmentLevel::Confirmed, CancellationToken::new(),
-        )
-            .reg_gas_recipient(fee_recipient)
-            .expect("Failed to register fee recipient");
+        // Crete solana rpc client
+        let rpc_client = Arc::new(config.solana.clone().into_async_client());
+        // solana clock indexer
+        let solana_clock_indexer = SolanaClockIndexer::new(rpc_client.clone()).await?;
+        // Parse the sync rpc client
+        let solana = SolanaTower::new(rpc_client, solana_clock_indexer.get_current_clock());
+        // Parse the payer keypair
+        let payer = SolanaKeyPayer::read_from_file(&config.payer_keypair)
+            .await?
+            .into_keypair()
+            .into();
+        // create rome evm client
+        let client = Arc::new(Client::new(
+            config.chain_id,
+            program_id,
+            solana,
+            config.solana.commitment,
+        ));
+        client
+            .reg_gas_recipient(fee_recipient, &payer)
+            .await
+            .map_err(|e| tracing::error!("Failed to register gas recipient address: {}", e))
+            .unwrap();
     }
 
-    let indexer = Indexer::new(program_id, client, commitment);
-    tracing::info!("Initialized Indexer");
+    // Geth indexer
+    let geth_indexer = config.geth_indexer;
 
     let mut da_client: Option<RomeDaClient> = None;
     if config.celestia_url.is_some() && config.celestia_token.is_some() {
         let celestia_url =
-            Url::parse(&config.celestia_url.unwrap()).expect("celestia_url should be set");
+            url::Url::parse(&config.celestia_url.unwrap()).expect("celestia_url should be set");
         let celestia_token = config.celestia_token.unwrap();
 
         da_client = Some(RomeDaClient::new(
@@ -123,15 +107,19 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("Initialized Da client");
     }
 
-    let rhea_service = RheaService::new(rome, geth_engine, indexer.clone(), da_client)?;
-    tracing::info!("Initialized RheaService");
+    // Run the Rhea Service
+    let rhea_service_jh = RheaService::start(
+        rome,
+        geth_engine,
+        indexer,
+        start_slot,
+        geth_indexer,
+        da_client,
+    );
 
+    // Shutdown on ctrl-c
     tokio::select! {
-        res = rhea_service.start(
-            start_slot,
-            Url::parse(&config.geth_http_addr).expect("geth_http_addr should be set"),
-            config.geth_poll_interval_ms,
-        ) => {
+        res = rhea_service_jh => {
             bail!("Rhea Service Exited: {:?}", res);
         },
         res = signal::ctrl_c() => {

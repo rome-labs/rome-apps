@@ -1,87 +1,62 @@
+use ethers::types::{transaction::eip2718::TypedTransaction, Signature};
 use rome_da::celestia::types::DaSubmissionBlock;
 use rome_da::celestia::RomeDaClient;
-use std::sync::Arc;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio::sync::Mutex;
-use tokio::task;
-
-use ethers::types::{transaction::eip2718::TypedTransaction, Signature};
 use rome_sdk::rome_evm_client::indexer::indexer::{BlockReceiver, BlockSender, Indexer};
-use rome_sdk::rome_geth::abstracted::subscribe_to_rollup;
 use rome_sdk::rome_geth::engine::GethEngine;
+use rome_sdk::rome_geth::indexers::pending_txs::GethPendingTxsIndexer;
 use rome_sdk::rome_geth::types::{GethTxPoolReceiver, GethTxPoolSender};
+use rome_sdk::rome_utils::services::ServiceRunner;
 use rome_sdk::{EthSignedTxTuple, RheaTx, Rome};
 use solana_sdk::clock::Slot;
+use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::Mutex;
 use tokio::sync::{mpsc, oneshot};
-use url::Url;
+use tokio::task;
 
-/// Listens to Geth mempool channel, sends transaction to Solana, and then
-/// does a fork choice on Geth
-pub struct RheaService {
-    rome: Rome,
-    geth_engine: GethEngine,
-    indexer: Indexer,
-    da_client: Option<RomeDaClient>,
-    state: Arc<Mutex<RheaState>>,
-}
-
-struct RheaState {
-    last_block_timestamp: Option<u64>, // To track the previous block's timestamp in seconds
-    timestamp_offset: u64,             // To handle offset in milliseconds
-}
+/// Listens to geth mempool channel and
+/// sends transaction to neon proxy
+/// then does a fork choice on geth
+pub struct RheaService;
 
 impl RheaService {
-    /// Create a new RheaService from RheaConfig
-    pub fn new(
-        rome: Rome,
-        geth_engine: GethEngine,
-        indexer: Indexer,
-        da_client: Option<RomeDaClient>,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
-            rome,
-            geth_engine,
-            indexer,
-            da_client,
-            state: Arc::new(Mutex::new(RheaState {
-                last_block_timestamp: None,
-                timestamp_offset: 0,
-            })),
-        })
-    }
-
-    async fn start_indexer<'a>(
-        &'a self,
+    /// Start the indexer
+    /// and notify the caller when it's started
+    async fn start_indexer(
+        indexer: Arc<Indexer>,
         start_slot: Slot,
-        block_tx: &'a BlockSender,
+        block_tx: BlockSender,
         idx_started_tx: oneshot::Sender<()>,
     ) {
-        self.indexer
-            .start(start_slot, 400, &block_tx, move || {
-                tracing::info!("Indexer started.");
-                if let Err(_) = idx_started_tx.send(()) {
-                    tracing::error!("Failed to send indexer started signal");
-                }
-            })
-            .await;
+        tracing::info!("Starting Indexer...");
+
+        indexer
+            .start(start_slot, 400, block_tx, Some(idx_started_tx))
+            .await
     }
 
+    /// Subscribe to rollup and listen to pending transactions
     async fn subscribe_to_rollup(
-        &self,
         idx_started_rx: oneshot::Receiver<()>,
-        geth_http_addr: Url,
-        geth_poll_interval_ms: u64,
+        geth_indexer: GethPendingTxsIndexer,
         geth_pending_tx: GethTxPoolSender,
     ) -> anyhow::Result<()> {
+        tracing::info!("Geth Indexer waiting for indexer to start");
+
         match idx_started_rx.await {
             Ok(_) => {
-                subscribe_to_rollup(geth_http_addr, geth_poll_interval_ms, geth_pending_tx).await
+                tracing::info!("Starting Geth Mempool Indexer");
+
+                geth_indexer
+                    .listen(geth_pending_tx, ServiceRunner::default())
+                    .await
             }
             Err(err) => anyhow::bail!("Failed to subscribe to rollup: {:?}", err),
         }
     }
 
-    async fn mempool_loop(&self, mut geth_rx: GethTxPoolReceiver) {
+    /// Listen to the mempool channel and send transactions to the rollup
+    async fn mempool_loop(rome: Rome, mut geth_rx: GethTxPoolReceiver) {
         while let Some(tx) = geth_rx.recv().await {
             tracing::info!("Received transaction: {:?}", tx);
 
@@ -94,8 +69,8 @@ impl RheaService {
             match TypedTransaction::try_from(&tx) {
                 Ok(tx) => {
                     let rhea_tx = RheaTx::new(EthSignedTxTuple::new(tx, signature));
-                    match self.rome.compose_rollup_tx(rhea_tx).await {
-                        Ok(rome_tx) => match self.rome.send_and_confirm_tx(rome_tx).await {
+                    match rome.compose_rollup_tx(rhea_tx).await {
+                        Ok(mut rome_tx) => match rome.send_and_confirm(&mut *rome_tx).await {
                             Ok(sig) => tracing::info!("Sent and confirmed tx: {:?}", sig),
                             Err(err) => tracing::warn!("Failed to send transaction: {:?}", err),
                         },
@@ -111,65 +86,59 @@ impl RheaService {
         }
     }
 
+    /// Listen to the block channel and advance the rollup state
     async fn state_advance_loop(
-        &self,
+        indexer: Arc<Indexer>,
+        geth_engine: GethEngine,
         mut block_rx: BlockReceiver,
-        da_tx: Option<UnboundedSender<DaSubmissionBlock>>,
     ) {
+        // To track the previous block's timestamp in seconds
+        let mut last_block_timestamp: Option<u64> = None;
+        // To handle offset in milliseconds
+        let mut timestamp_offset: u64 = 0;
+
         while let Some(block) = block_rx.recv().await {
             let block_timestamp = block.timestamp.as_u64();
+
             let adjusted_timestamp = {
-                let mut state = self.state.lock().await;
-                match state.last_block_timestamp {
+                match last_block_timestamp {
                     Some(last_timestamp) => {
                         if block_timestamp == last_timestamp {
-                            state.timestamp_offset += 400;
-                            last_timestamp * 1000 + state.timestamp_offset
+                            timestamp_offset += 400;
+                            last_timestamp * 1000 + timestamp_offset
                         } else {
-                            state.timestamp_offset = 0;
+                            timestamp_offset = 0;
                             block_timestamp * 1000
                         }
                     }
                     None => block_timestamp * 1000, // First block, no adjustment needed
                 }
             };
-            {
-                let mut state = self.state.lock().await;
-                state.last_block_timestamp = Some(block_timestamp);
-            }
 
-            if let Some(transactions) = match self.indexer.get_transaction_storage().read() {
-                Ok(lock) => Some(block.get_transactions(&lock)),
-                Err(e) => {
-                    tracing::warn!("Failed to lock transaction sender: {:?}", e);
-                    None
-                }
-            } {
-                tracing::info!(
-                    "Advancing rollup state for block number: {:?}, transactions: {:?}",
-                    block.number,
-                    transactions.len()
-                );
-                let _ = self
-                    .geth_engine
+            last_block_timestamp = Some(block_timestamp);
+
+            let lock = indexer.get_transaction_storage();
+            let lock = lock.read().await;
+
+            let transactions = block.get_transactions(&lock);
+
+            drop(lock);
+
+            if !transactions.is_empty() {
+                let result = geth_engine
                     .advance_rollup_state(&transactions, adjusted_timestamp)
                     .await;
 
-                if let Some(da_tx) = &da_tx {
-                    da_tx
-                        .send(DaSubmissionBlock {
-                            block_number: block.number,
-                            timestamp: block.timestamp,
-                            transactions: transactions.iter().map(|(tx, _)| tx.clone()).collect(),
-                        })
-                        .expect("DA submission channel closed");
-                }
+                tracing::info!("Advanced rollup state: {:?}", result);
             }
         }
     }
 
-    async fn batch_da_submissions(&self, mut da_rx: UnboundedReceiver<DaSubmissionBlock>) {
-        if let Some(da_client) = &self.da_client {
+    async fn batch_da_submissions(
+        mut da_rx: UnboundedReceiver<DaSubmissionBlock>,
+        da_client: Option<RomeDaClient>,
+    ) {
+        if let Some(da_client) = da_client {
             let buffer = Arc::new(Mutex::new(Vec::new()));
             let buffer_clone = buffer.clone();
 
@@ -200,10 +169,12 @@ impl RheaService {
 
     /// Start the Rhea service
     pub async fn start(
-        self,
+        rome: Rome,
+        geth_engine: GethEngine,
+        indexer: Arc<Indexer>,
         start_slot: Slot,
-        geth_http_addr: Url,
-        geth_poll_interval_ms: u64,
+        geth_indexer: GethPendingTxsIndexer,
+        da_client: Option<RomeDaClient>,
     ) -> anyhow::Result<()> {
         tracing::info!("Starting Rhea Service...");
 
@@ -211,53 +182,53 @@ impl RheaService {
         let (block_tx, block_rx) = mpsc::unbounded_channel();
         let (idx_started_tx, idx_started_rx) = oneshot::channel();
 
-        let indexer_res = self.start_indexer(start_slot, &block_tx, idx_started_tx);
-        let rollup_res = self.subscribe_to_rollup(
-            idx_started_rx,
-            geth_http_addr,
-            geth_poll_interval_ms,
-            geth_pending_tx,
-        );
-        let mempool_res = self.mempool_loop(geth_pending_rx);
+        let indexer_jh = Self::start_indexer(indexer.clone(), start_slot, block_tx, idx_started_tx);
+        let geth_jh = Self::subscribe_to_rollup(idx_started_rx, geth_indexer, geth_pending_tx);
+        let mempool_jh = Self::mempool_loop(rome, geth_pending_rx);
+        let state_advance_jh = Self::state_advance_loop(indexer, geth_engine, block_rx);
 
-        if self.da_client.is_some() {
-            let (da_tx, da_rx) = mpsc::unbounded_channel::<DaSubmissionBlock>();
-            let state_advance_res = self.state_advance_loop(block_rx, Some(da_tx));
-            let da_submission_res = self.batch_da_submissions(da_rx);
+        // tokio spawn all
+        let indexer_jh = tokio::spawn(indexer_jh);
+        let geth_jh = tokio::spawn(geth_jh);
+        let mempool_jh = tokio::spawn(mempool_jh);
+        let state_advance_jh = tokio::spawn(state_advance_jh);
+
+        if da_client.is_some() {
+            // todo: remove unnecessary channel
+            let (_da_tx, da_rx) = mpsc::unbounded_channel::<DaSubmissionBlock>();
+            let da_submission_jh = Self::batch_da_submissions(da_rx, da_client);
 
             tokio::select! {
-                res = indexer_res => {
+                res = indexer_jh => {
                     anyhow::bail!("Indexer Reader Exited: {:?}", res);
                 },
-                res = rollup_res => {
+                res = geth_jh => {
                     anyhow::bail!("Rollup subscription error: {:?}", res);
                 }
-                res = mempool_res => {
+                res = mempool_jh => {
                     anyhow::bail!("Geth pending transactions channel closed unexpectedly: {:?}", res);
                 },
-                res = state_advance_res => {
+                res = state_advance_jh => {
                     anyhow::bail!("Indexer blocks channel closed unexpectedly {:?}", res);
-                },
-                res = da_submission_res => {
+                }
+                res = da_submission_jh => {
                     anyhow::bail!("DA submission channel closed unexpectedly: {:?}", res);
                 }
             }
         } else {
-            let state_advance_res = self.state_advance_loop(block_rx, None);
-
             tokio::select! {
-                res = indexer_res => {
+                res = indexer_jh => {
                     anyhow::bail!("Indexer Reader Exited: {:?}", res);
                 },
-                res = rollup_res => {
+                res = geth_jh => {
                     anyhow::bail!("Rollup subscription error: {:?}", res);
                 }
-                res = mempool_res => {
+                res = mempool_jh => {
                     anyhow::bail!("Geth pending transactions channel closed unexpectedly: {:?}", res);
                 },
-                res = state_advance_res => {
+                res = state_advance_jh => {
                     anyhow::bail!("Indexer blocks channel closed unexpectedly {:?}", res);
-                },
+                }
             }
         }
     }

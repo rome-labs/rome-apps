@@ -1,60 +1,43 @@
-use jsonrpsee::tracing;
-use {
-    crate::config::Config,
-    log::info,
-    rome_sdk::rome_evm_client::RomeEVMClient,
-    solana_client::rpc_client::RpcClient,
-    solana_sdk::{
-        commitment_config::{CommitmentConfig, CommitmentLevel},
-        signature::{read_keypair_file, Signer},
-    },
-    std::{path::Path, sync::Arc},
-    tokio_util::sync::CancellationToken,
-};
+use crate::api::EthServer;
+use anyhow::Context;
+use jsonrpsee::server::{ServerBuilder, ServerHandle};
+use jsonrpsee::RpcModule;
+
+use rome_sdk::rome_evm_client::RomeEVMClient;
+use solana_sdk::signature::Keypair;
+use std::net::SocketAddr;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct Proxy {
     pub rome_evm_client: Arc<RomeEVMClient>,
+    pub payer: Arc<Keypair>,
 }
 
 impl Proxy {
-    pub async fn new(config: Config, token: CancellationToken) -> Self {
-        let program_id = read_keypair_file(Path::new(&config.program_id_keypair))
-            .expect("read program_id keypair error")
-            .pubkey();
-        let payer = Arc::new(
-            read_keypair_file(Path::new(&config.payer_keypair)).expect("read payer keypair error"),
-        );
-        let client = Arc::new(RpcClient::new_with_commitment(
-            &config.solana_url,
-            CommitmentConfig {
-                commitment: CommitmentLevel::Confirmed,
-            },
-        ));
-
-        info!("Rome-EVM Program id: {:?}", program_id);
-        info!("Proxy operator wallet: {:?}", payer.pubkey());
-
-        let rome_evm_client = Arc::new(RomeEVMClient::new(
-            config.chain_id,
-            program_id,
+    /// Create a new instance of the [Proxy]
+    pub fn new(rome_evm_client: Arc<RomeEVMClient>, payer: Arc<Keypair>) -> Self {
+        Self {
+            rome_evm_client,
             payer,
-            client,
-            config.number_holders,
-            config.commitment_level,
-            token,
-        ));
-
-        if let Some(fee_recipient) = config.fee_recipient {
-            rome_evm_client.reg_gas_recipient(fee_recipient).expect("Failed to register fee recipient");
         }
-
-        Self { rome_evm_client }
     }
 
-    pub async fn start(self, start_slot: u64) {
-        self.rome_evm_client
-            .start(start_slot, || tracing::info!("Proxy started"))
-            .await;
+    /// Start the RPC server
+    pub async fn start_rpc_server(self, host: SocketAddr) -> anyhow::Result<ServerHandle> {
+        tracing::info!("Starting the RPC server at {host}");
+
+        let rpc = ServerBuilder::default()
+            .build(host)
+            .await
+            .context("Unable to start the RPC server")?;
+
+        let mut module = RpcModule::new(());
+
+        // merge the rpc
+        module.merge(EthServer::into_rpc(self)).unwrap();
+
+        // start and return the rpc handle
+        Ok(rpc.start(module))
     }
 }
