@@ -20,6 +20,7 @@ COPY --from=builder /opt/rome-apps/target/release/rhea /opt/
 COPY --from=builder /opt/rome-apps/target/release/cli /opt/
 COPY ./rome-apps/docker/entrypoint.sh /opt/
 COPY ./rome-apps/docker/cli.sh /opt/
+COPY ./rome-apps/docker/cli-deploy.sh /opt/
 
 WORKDIR /opt
 
