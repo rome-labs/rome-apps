@@ -1,6 +1,5 @@
 use clap::Parser;
 use rome_da::celestia::RomeDaClient;
-use rome_sdk::rome_solana::payer::SolanaKeyPayer;
 
 use rome_sdk::Rome;
 use tokio::signal;
@@ -10,12 +9,18 @@ use self::config::RheaConfig;
 use self::service::RheaService;
 use anyhow::bail;
 use dotenv::dotenv;
-use rome_sdk::rome_evm_client::{indexer::indexer::Indexer, RomeEVMClient as Client};
+use rome_sdk::rome_evm_client::{
+    indexer::{
+        indexer::Indexer, solana_block_inmemory_storage::SolanaBlockInMemoryStorage,
+    },
+};
 use rome_sdk::rome_geth::engine::GethEngine;
-use rome_sdk::rome_solana::indexers::clock::SolanaClockIndexer;
-use rome_sdk::rome_solana::tower::SolanaTower;
-use solana_sdk::signer::Signer;
 use std::sync::Arc;
+use rome_sdk::rome_evm_client::{
+    indexer::transaction_inmemory_storage::TransactionInMemoryStorage,
+};
+use solana_sdk::pubkey::Pubkey;
+use std::str::FromStr;
 
 mod cli;
 mod config;
@@ -29,10 +34,7 @@ async fn main() -> anyhow::Result<()> {
     // get the config
     let config: RheaConfig = Cli::parse().load_config().await?;
 
-    // get the program id
-    let program_id = SolanaKeyPayer::read_from_file(&config.program_keypair)
-        .await?
-        .pubkey();
+    let program_id = Pubkey::from_str(&config.program_id).unwrap();
 
     // Create the Rome instance
     let rome = Rome::new_with_config(rome_sdk::RomeConfig {
@@ -40,8 +42,7 @@ async fn main() -> anyhow::Result<()> {
         rollups: vec![(config.chain_id, program_id.to_string())]
             .into_iter()
             .collect(),
-        payer_path: config.payer_keypair.clone(),
-        holder_count: config.number_holders,
+        payers: config.payers,
     })
     .await?;
 
@@ -54,40 +55,21 @@ async fn main() -> anyhow::Result<()> {
         .start_slot
         .unwrap_or_else(|| rome.solana().clock().get_current_slot());
 
+    let indexer_client = if let Some(solana_indexer) = config.solana_indexer {
+        Arc::new(solana_indexer.into())
+    } else {
+        rome.solana().client_cloned()
+    };
+
     // Create the indexer
     let indexer = Arc::new(Indexer::new(
         program_id,
-        rome.solana().client_cloned(),
+        SolanaBlockInMemoryStorage::new(),
+        TransactionInMemoryStorage::new(),
+        indexer_client,
         config.solana.commitment,
         config.chain_id,
     ));
-
-    // Register the gas recipient address
-    if let Some(fee_recipient) = config.fee_recipient {
-        // Crete solana rpc client
-        let rpc_client = Arc::new(config.solana.clone().into_async_client());
-        // solana clock indexer
-        let solana_clock_indexer = SolanaClockIndexer::new(rpc_client.clone()).await?;
-        // Parse the sync rpc client
-        let solana = SolanaTower::new(rpc_client, solana_clock_indexer.get_current_clock());
-        // Parse the payer keypair
-        let payer = SolanaKeyPayer::read_from_file(&config.payer_keypair)
-            .await?
-            .into_keypair()
-            .into();
-        // create rome evm client
-        let client = Arc::new(Client::new(
-            config.chain_id,
-            program_id,
-            solana,
-            config.solana.commitment,
-        ));
-        client
-            .reg_gas_recipient(fee_recipient, &payer)
-            .await
-            .map_err(|e| tracing::error!("Failed to register gas recipient address: {}", e))
-            .unwrap();
-    }
 
     // Geth indexer
     let geth_indexer = config.geth_indexer;

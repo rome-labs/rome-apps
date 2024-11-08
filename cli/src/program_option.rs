@@ -1,6 +1,6 @@
 use {
     clap::{Parser, Subcommand},
-    ethers::types::Address,
+    ethers::types::{Address, U256,},
     solana_sdk::pubkey::Pubkey,
 };
 
@@ -11,9 +11,9 @@ pub struct Cli {
     /// rome-evm program_id
     #[arg(short, long)]
     pub program_id: Pubkey,
-    /// chain_id of rollup
+    /// chain_id of rollup (optional, not required for get-rollup)
     #[arg(short, long)]
-    pub chain_id: u64,
+    pub chain_id: Option<u64>,
     /// URL for Solana's JSON RPC: http://localhost:8899
     #[arg(short, long)]
     pub url: String,
@@ -40,11 +40,23 @@ pub enum Cmd {
         /// path to rollup owner keypair
         keypair: String,
     },
-    /// registry the operator's gas recipient account
-    RegGasRecipient {
-        /// the gas recipient address of the operator
+    /// get balance
+    GetBalance {
         address: Address,
-        /// path to keypair of the operator
-        keypair: String,
     },
+    /// get contract code
+    GetCode {
+        address: Address,
+    },
+    /// get storage slot
+    GetStorageAt {
+        address: Address,
+        slot: U256,
+    },
+    /// get transaction count
+    GetTransactionCount {
+        address: Address,
+    },
+    /// get list of registered rollups
+    GetRollups,
 }

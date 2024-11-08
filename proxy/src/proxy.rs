@@ -4,22 +4,27 @@ use jsonrpsee::server::{ServerBuilder, ServerHandle};
 use jsonrpsee::RpcModule;
 
 use rome_sdk::rome_evm_client::RomeEVMClient;
-use solana_sdk::signature::Keypair;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use rome_sdk::rome_evm_client::indexer::solana_block_storage::SolanaBlockStorage;
+use rome_sdk::rome_evm_client::indexer::transaction_storage::TransactionStorage;
 
 #[derive(Clone)]
-pub struct Proxy {
-    pub rome_evm_client: Arc<RomeEVMClient>,
-    pub payer: Arc<Keypair>,
+pub struct Proxy<
+    S: SolanaBlockStorage + 'static,
+    T: TransactionStorage + 'static,
+> {
+    pub rome_evm_client: Arc<RomeEVMClient<S, T>>,
 }
 
-impl Proxy {
+impl<
+    S: SolanaBlockStorage + 'static,
+    T: TransactionStorage + 'static
+> Proxy<S, T> {
     /// Create a new instance of the [Proxy]
-    pub fn new(rome_evm_client: Arc<RomeEVMClient>, payer: Arc<Keypair>) -> Self {
+    pub fn new(rome_evm_client: Arc<RomeEVMClient<S, T>>) -> Self {
         Self {
             rome_evm_client,
-            payer,
         }
     }
 

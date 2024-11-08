@@ -11,3 +11,4 @@ clap = { workspace = true }
 tokio = { workspace = true }
 ethers = { workspace = true }
 rome-sdk = { workspace = true }
+hex = { workspace = true }

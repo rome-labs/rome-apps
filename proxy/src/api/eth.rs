@@ -10,12 +10,16 @@ use {
         TxHash, H256, U256, U64,
     },
     rome_sdk::rome_evm_client::indexer::{
-        ethereum_block_storage::BlockType, transaction_data::TransactionData,
+        ethereum_block_storage::BlockType, indexed_transaction::IndexedTransaction,
+        solana_block_storage::SolanaBlockStorage, transaction_storage::TransactionStorage,
     },
 };
 
 #[async_trait]
-impl EthServer for Proxy {
+impl<
+    S: SolanaBlockStorage + 'static,
+    T: TransactionStorage + 'static,
+> EthServer for Proxy<S, T> {
     async fn eth_get_balance(&self, address: Address, _block: String) -> ApiResult<U256> {
         let result = self
             .rome_evm_client
@@ -117,7 +121,7 @@ impl EthServer for Proxy {
     async fn eth_send_raw_transaction(&self, rlp: Bytes) -> ApiResult<TxHash> {
         let result = self
             .rome_evm_client
-            .send_transaction(rlp, &self.payer)
+            .send_transaction(rlp)
             .await
             .map_err(|e| e.into());
 
@@ -135,7 +139,7 @@ impl EthServer for Proxy {
         &self,
         tx_hash: H256,
     ) -> ApiResult<Option<TransactionReceipt>> {
-        let func = |tx_data: &TransactionData| tx_data.get_receipt().cloned();
+        let func = |tx_data: &T::TransactionType| tx_data.eth_receipt();
         let result = self
             .rome_evm_client
             .process_transaction(tx_hash, func)
@@ -147,7 +151,7 @@ impl EthServer for Proxy {
     }
 
     async fn eth_get_transaction_by_hash(&self, tx_hash: H256) -> ApiResult<Option<Transaction>> {
-        let func = |tx_data: &TransactionData| tx_data.get_transaction().cloned();
+        let func = |tx_data: &T::TransactionType| tx_data.eth_transaction();
         let result = self
             .rome_evm_client
             .process_transaction(tx_hash, func)

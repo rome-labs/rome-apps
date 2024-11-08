@@ -8,12 +8,18 @@ use std::sync::Arc;
 use self::cli::Cli;
 use clap::Parser;
 use proxy::Proxy;
-use rome_sdk::rome_evm_client::RomeEVMClient;
+use rome_sdk::rome_evm_client::{
+    indexer::solana_block_inmemory_storage::SolanaBlockInMemoryStorage,
+    RomeEVMClient
+};
+use rome_sdk::rome_evm_client::{
+    indexer::transaction_inmemory_storage::TransactionInMemoryStorage, resources::Payer
+};
 use rome_sdk::rome_solana::indexers::clock::SolanaClockIndexer;
-use rome_sdk::rome_solana::payer::SolanaKeyPayer;
 use rome_sdk::rome_solana::tower::SolanaTower;
-use solana_sdk::signer::Signer;
 use tokio::signal;
+use solana_sdk::pubkey::Pubkey;
+use std::str::FromStr;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -24,12 +30,10 @@ async fn main() -> anyhow::Result<()> {
     // Parse the cli arguments and load the config
     let config = Cli::parse().load_config().await?;
 
+    let payers = Payer::from_config_list(&config.payers).await?;
+
     // Crete solana rpc client
     let rpc_client = Arc::new(config.solana.clone().into_async_client());
-    // parse the program id
-    let program_id = SolanaKeyPayer::read_from_file(&config.program_keypair)
-        .await?
-        .pubkey();
 
     // solana clock indexer
     let solana_clock_indexer = SolanaClockIndexer::new(rpc_client.clone()).await?;
@@ -39,18 +43,15 @@ async fn main() -> anyhow::Result<()> {
     // Parse the sync rpc client
     let solana = SolanaTower::new(rpc_client, solana_clock_indexer.get_current_clock());
 
-    // Parse the payer keypair
-    let payer = SolanaKeyPayer::read_from_file(&config.payer_keypair)
-        .await?
-        .into_keypair()
-        .into();
-
     // create rome evm client
     let rome_evm_client = Arc::new(RomeEVMClient::new(
         config.chain_id,
-        program_id,
+        Pubkey::from_str(&config.program_id).unwrap(),
         solana,
         config.solana.commitment,
+        SolanaBlockInMemoryStorage::new(),
+        TransactionInMemoryStorage::new(),
+        payers,
     ));
 
     // Get the start slot
@@ -78,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Start the proxy server
-    let _server = Proxy::new(rome_evm_client, payer)
+    let _server = Proxy::new(rome_evm_client)
         .start_rpc_server(config.proxy_host)
         .await?;
 

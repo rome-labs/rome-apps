@@ -1,11 +1,19 @@
 use {
     crate::program_option::Cmd,
-    rome_sdk::rome_evm_client::RomeEVMClient as Client,
+    rome_sdk::rome_evm_client::{
+        indexer::{
+            solana_block_storage::SolanaBlockStorage, transaction_storage::TransactionStorage,
+        },
+        RomeEVMClient as Client
+    },
     solana_sdk::signature::{read_keypair_file, Signer},
     std::path::Path,
 };
 
-pub async fn execute(cmd: Cmd, client: &Client) -> anyhow::Result<()> {
+pub async fn execute<
+    S: SolanaBlockStorage + 'static,
+    T: TransactionStorage + 'static,
+>(cmd: Cmd, client: &Client<S, T>) -> anyhow::Result<()> {
     match cmd {
         Cmd::CreateBalance {
             address,
@@ -42,17 +50,25 @@ pub async fn execute(cmd: Cmd, client: &Client) -> anyhow::Result<()> {
                 rollup_owner
             );
         }
-        Cmd::RegGasRecipient { address, keypair } => {
-            let keypair =
-                read_keypair_file(Path::new(&keypair)).expect("read operator keypair error");
-
-            client.reg_gas_recipient(address, &keypair).await?;
-            println!(
-                "gas recipient address has been registered: chain_id {}, address {}, operator {}",
-                client.chain_id(),
-                address,
-                keypair.pubkey()
-            );
+        Cmd::GetBalance {address} => {
+            let balance = client.get_balance(address)?;
+            println!("balance: {}", balance);
+        }
+        Cmd::GetCode {address} => {
+            let code = client.get_code(address)?;
+            println!("code: {:#}", hex::encode(code.as_ref()));
+        }
+        Cmd::GetStorageAt {address, slot} => {
+            let value = client.eth_get_storage_at(address, slot)?;
+            println!("value: {}", value);
+        }
+        Cmd::GetTransactionCount {address} => {
+            let nonce = client.transaction_count(address)?;
+            println!("nonce: {}", nonce);
+        }
+        Cmd::GetRollups => {
+            let rollups = client.get_rollups()?;
+            rollups.iter().for_each(|a| println!("{:?}", a));
         }
     }
 
