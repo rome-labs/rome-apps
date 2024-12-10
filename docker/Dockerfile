@@ -1,27 +1,33 @@
 FROM solanalabs/solana:v1.18.17 AS solana
 
-FROM ubuntu:22.04 as builder
+FROM ubuntu:22.04 as base
+RUN apt update && apt install -y cargo-1.78 pkg-config libssl-dev libpq-dev build-essential curl
 
-RUN apt update && apt install -y rustc cargo pkg-config libssl-dev
+FROM base as builder
 
 COPY ./rome-evm /opt/rome-evm
 COPY ./rome-sdk /opt/rome-sdk
 COPY ./rome-apps /opt/rome-apps
 
 WORKDIR /opt/rome-apps/
-RUN RUSTFLAGS="-D warnings" cargo build --release
+RUN RUSTFLAGS="-D warnings" cargo-1.78 build --release
+RUN cargo-1.78 install diesel_cli --no-default-features --features postgres
 
-FROM ubuntu:22.04 AS runtime
-RUN apt update && apt install -y ca-certificates wget libssl3 libssl-dev curl
+FROM base AS runtime
 
 COPY --from=solana /usr/bin/solana /usr/bin/solana
 COPY --from=builder /opt/rome-apps/target/release/proxy /opt/
 COPY --from=builder /opt/rome-apps/target/release/rhea /opt/
 COPY --from=builder /opt/rome-apps/target/release/cli /opt/
+COPY --from=builder /opt/rome-apps/target/release/hercules /opt/
+COPY --from=builder /root/.cargo/bin/diesel /opt/
 COPY ./rome-apps/docker/entrypoint.sh /opt/
 COPY ./rome-apps/docker/cli.sh /opt/
 COPY ./rome-apps/docker/cli-deploy.sh /opt/
+COPY ./rome-apps/docker/apply_migrations /opt/
+COPY ./rome-sdk/rome-evm-client/src/indexer/pg_storage/migrations /opt/migrations
 
 WORKDIR /opt
 
 ENTRYPOINT ["./entrypoint.sh"]
+

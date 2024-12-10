@@ -8,8 +8,7 @@ use {
     jsonrpsee::proc_macros::rpc,
     jsonrpsee::types::{error::CALL_EXECUTION_FAILED_CODE, ErrorObjectOwned},
     rome_sdk::rome_evm_client::{
-        error::RomeEvmError, indexer::ethereum_block_storage::BlockType,
-        rome_evm::error::RomeProgramError,
+        error::RomeEvmError, indexer::BlockType, rome_evm::error::RomeProgramError,
     },
     solana_client::client_error::ClientError,
     thiserror::Error,

@@ -1,19 +1,15 @@
+use rome_sdk::rome_evm_client::indexer::EthereumBlockStorage;
 use {
     crate::program_option::Cmd,
-    rome_sdk::rome_evm_client::{
-        indexer::{
-            solana_block_storage::SolanaBlockStorage, transaction_storage::TransactionStorage,
-        },
-        RomeEVMClient as Client
-    },
+    rome_sdk::rome_evm_client::{indexer::SolanaBlockStorage, RomeEVMClient as Client},
     solana_sdk::signature::{read_keypair_file, Signer},
     std::path::Path,
 };
 
-pub async fn execute<
-    S: SolanaBlockStorage + 'static,
-    T: TransactionStorage + 'static,
->(cmd: Cmd, client: &Client<S, T>) -> anyhow::Result<()> {
+pub async fn execute<S: SolanaBlockStorage + 'static, E: EthereumBlockStorage + 'static>(
+    cmd: Cmd,
+    client: &Client<S, E>,
+) -> anyhow::Result<()> {
     match cmd {
         Cmd::CreateBalance {
             address,
@@ -50,19 +46,19 @@ pub async fn execute<
                 rollup_owner
             );
         }
-        Cmd::GetBalance {address} => {
+        Cmd::GetBalance { address } => {
             let balance = client.get_balance(address)?;
             println!("balance: {}", balance);
         }
-        Cmd::GetCode {address} => {
+        Cmd::GetCode { address } => {
             let code = client.get_code(address)?;
             println!("code: {:#}", hex::encode(code.as_ref()));
         }
-        Cmd::GetStorageAt {address, slot} => {
+        Cmd::GetStorageAt { address, slot } => {
             let value = client.eth_get_storage_at(address, slot)?;
             println!("value: {}", value);
         }
-        Cmd::GetTransactionCount {address} => {
+        Cmd::GetTransactionCount { address } => {
             let nonce = client.transaction_count(address)?;
             println!("nonce: {}", nonce);
         }

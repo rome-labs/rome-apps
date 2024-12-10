@@ -1,6 +1,6 @@
 use {
     clap::{Parser, Subcommand},
-    ethers::types::{Address, U256,},
+    ethers::types::{Address, U256},
     solana_sdk::pubkey::Pubkey,
 };
 
@@ -41,22 +41,13 @@ pub enum Cmd {
         keypair: String,
     },
     /// get balance
-    GetBalance {
-        address: Address,
-    },
+    GetBalance { address: Address },
     /// get contract code
-    GetCode {
-        address: Address,
-    },
+    GetCode { address: Address },
     /// get storage slot
-    GetStorageAt {
-        address: Address,
-        slot: U256,
-    },
+    GetStorageAt { address: Address, slot: U256 },
     /// get transaction count
-    GetTransactionCount {
-        address: Address,
-    },
+    GetTransactionCount { address: Address },
     /// get list of registered rollups
     GetRollups,
 }

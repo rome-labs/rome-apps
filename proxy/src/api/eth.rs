@@ -9,17 +9,11 @@ use {
         Address, BlockId, Bytes, FeeHistory, Transaction, TransactionReceipt, TransactionRequest,
         TxHash, H256, U256, U64,
     },
-    rome_sdk::rome_evm_client::indexer::{
-        ethereum_block_storage::BlockType, indexed_transaction::IndexedTransaction,
-        solana_block_storage::SolanaBlockStorage, transaction_storage::TransactionStorage,
-    },
+    rome_sdk::rome_evm_client::indexer::{BlockType, EthereumBlockStorage, SolanaBlockStorage},
 };
 
 #[async_trait]
-impl<
-    S: SolanaBlockStorage + 'static,
-    T: TransactionStorage + 'static,
-> EthServer for Proxy<S, T> {
+impl<S: SolanaBlockStorage + 'static, E: EthereumBlockStorage + 'static> EthServer for Proxy<S, E> {
     async fn eth_get_balance(&self, address: Address, _block: String) -> ApiResult<U256> {
         let result = self
             .rome_evm_client
@@ -64,7 +58,7 @@ impl<
             .get_block(block_number, full_transactions)
             .await
             .map_err(ApiError::RomeEvmError);
-        tracing::info!("eth_get_block_by_number {:?}", block_number);
+        tracing::info!("eth_get_block_by_number {:?}", result);
         result
     }
 
@@ -139,27 +133,17 @@ impl<
         &self,
         tx_hash: H256,
     ) -> ApiResult<Option<TransactionReceipt>> {
-        let func = |tx_data: &T::TransactionType| tx_data.eth_receipt();
-        let result = self
-            .rome_evm_client
-            .process_transaction(tx_hash, func)
+        self.rome_evm_client
+            .get_transaction_receipt(&tx_hash)
             .await
-            .map_err(|e| e.into());
-
-        tracing::info!("eth_get_transaction_receipt({:?}): {:?}", tx_hash, result);
-        result
+            .map_err(|err| err.into())
     }
 
     async fn eth_get_transaction_by_hash(&self, tx_hash: H256) -> ApiResult<Option<Transaction>> {
-        let func = |tx_data: &T::TransactionType| tx_data.eth_transaction();
-        let result = self
-            .rome_evm_client
-            .process_transaction(tx_hash, func)
+        self.rome_evm_client
+            .get_transaction(&tx_hash)
             .await
-            .map_err(|e| e.into());
-
-        tracing::info!("eth_get_transaction_by_hash({:?}): {:?}", tx_hash, result);
-        result
+            .map_err(|err| err.into())
     }
 
     async fn eth_fee_history(

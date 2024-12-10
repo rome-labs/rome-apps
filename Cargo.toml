@@ -1,5 +1,5 @@
 [workspace]
-members = ["rhea", "proxy", "cli"]
+members = ["rhea", "proxy", "cli", "hercules"]
 resolver = "2"
 
 [workspace.dependencies]

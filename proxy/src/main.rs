@@ -8,24 +8,18 @@ use std::sync::Arc;
 use self::cli::Cli;
 use clap::Parser;
 use proxy::Proxy;
-use rome_sdk::rome_evm_client::{
-    indexer::solana_block_inmemory_storage::SolanaBlockInMemoryStorage,
-    RomeEVMClient
-};
-use rome_sdk::rome_evm_client::{
-    indexer::transaction_inmemory_storage::TransactionInMemoryStorage, resources::Payer
-};
+use rome_sdk::rome_evm_client::{indexer::inmemory, resources::Payer, RomeEVMClient};
 use rome_sdk::rome_solana::indexers::clock::SolanaClockIndexer;
 use rome_sdk::rome_solana::tower::SolanaTower;
-use tokio::signal;
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
+use tokio::signal;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // load any .env and init the logger
     dotenv::dotenv().ok();
-    tracing_subscriber::fmt().init();
+    tracing_subscriber::fmt().json().init();
 
     // Parse the cli arguments and load the config
     let config = Cli::parse().load_config().await?;
@@ -45,31 +39,26 @@ async fn main() -> anyhow::Result<()> {
 
     // create rome evm client
     let rome_evm_client = Arc::new(RomeEVMClient::new(
-        config.chain_id,
-        Pubkey::from_str(&config.program_id).unwrap(),
+        Pubkey::from_str(&config.program_id)?,
         solana,
         config.solana.commitment,
-        SolanaBlockInMemoryStorage::new(),
-        TransactionInMemoryStorage::new(),
+        Arc::new(inmemory::SolanaBlockStorage::new()),
+        Arc::new(inmemory::EthereumBlockStorage::new(config.chain_id)),
         payers,
     ));
 
-    // Get the start slot
-    let start_slot = config.start_slot.unwrap_or_default();
     let (idx_started_oneshot, idx_started_recv) = tokio::sync::oneshot::channel();
 
     // Start the indexer
     let indexer_jh = {
-        let rome_evm_client = rome_evm_client.clone();
-
-        tokio::spawn(async move {
-            tracing::info!("Starting indexer, waiting to catch up..");
-
-            rome_evm_client
-                .clone()
-                .start_indexing(start_slot, Some(idx_started_oneshot))
-                .await;
-        })
+        rome_evm_client
+            .clone()
+            .start_indexing(
+                config.start_slot,
+                Some(idx_started_oneshot),
+                config.max_slot_history,
+            )
+            .await
     };
 
     tokio::select! {
