@@ -9,4 +9,5 @@ pub struct RheaConfig {
     pub chain_id: u64,
     pub payers: Vec<PayerConfig>,
     pub geth_indexer: GethPendingTxsIndexer,
+    pub mempool_ttl: Option<u64>,
 }

@@ -9,9 +9,12 @@ use anyhow::bail;
 use dotenv::dotenv;
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
+use std::time::Duration;
 
 mod cli;
 mod config;
+mod mempool;
+mod mempool_sender;
 mod service;
 
 #[tokio::main]
@@ -31,7 +34,11 @@ async fn main() -> anyhow::Result<()> {
     })
     .await?;
 
-    let rhea_service_jh = RheaService::start(rome, config.geth_indexer);
+    let rhea_service_jh = RheaService::start(
+        rome,
+        config.geth_indexer,
+        config.mempool_ttl.map(|sec| Duration::from_secs(sec)),
+    );
 
     tokio::select! {
         res = rhea_service_jh => {

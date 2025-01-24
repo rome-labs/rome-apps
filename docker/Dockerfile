@@ -1,7 +1,7 @@
-FROM solanalabs/solana:v1.18.17 AS solana
+FROM anzaxyz/agave:v2.1.7 as solana
 
 FROM ubuntu:22.04 as base
-RUN apt update && apt install -y cargo-1.78 pkg-config libssl-dev libpq-dev build-essential curl
+RUN apt update && apt install -y cargo-1.79 pkg-config libssl-dev libpq-dev build-essential curl
 
 FROM base as builder
 
@@ -10,8 +10,8 @@ COPY ./rome-sdk /opt/rome-sdk
 COPY ./rome-apps /opt/rome-apps
 
 WORKDIR /opt/rome-apps/
-RUN RUSTFLAGS="-D warnings" cargo-1.78 build --release
-RUN cargo-1.78 install diesel_cli --no-default-features --features postgres
+RUN RUSTFLAGS="-D warnings" cargo-1.79 build --release
+RUN cargo-1.79 install diesel_cli --no-default-features --features postgres
 
 FROM base AS runtime
 

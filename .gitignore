@@ -2,4 +2,5 @@ target/
 *.idea/*
 rhea/.idea/*
 proxy/.idea
+hercules/.idea
 cli/.idea

@@ -16,11 +16,11 @@ jobs:
       
       # Set the versions of the various images to run tests against
       EVM_VERSION: "main"
-      # APPS_VERSION: "latest" # this is calculated based on current branch name as docker image is tagged with branch name
-      GETH_VERSION: "main"
       TESTS_VERSION: "main"
-      UNISWAP_VERSION: "main"
-      OPENZEPPELIN_VERSION: "main"
+
+      GETH_VERSION: "main"
+      UNISWAP_VERSION: "latest"
+      OPENZEPPELIN_VERSION: "latest"
 
       # Set the tests list to run 
       TESTS_LIST: "tests,uniswap_geth,uniswap_proxy"
@@ -78,7 +78,7 @@ jobs:
       rome_apps_ref_name: ${{ needs.prepare_env.outputs.rome_apps_ref_name }}
       
   reusable-wf-tests:
-    uses: rome-labs/tests/.github/workflows/reusable_wf_tests.yml@main
+    uses: rome-labs/tests/.github/workflows/reusable_wf_tests.yml@master
     needs: [prepare_env, reusable-wf-build]
     secrets: inherit
     with:

@@ -9,11 +9,11 @@ use {
         Address, BlockId, Bytes, FeeHistory, Transaction, TransactionReceipt, TransactionRequest,
         TxHash, H256, U256, U64,
     },
-    rome_sdk::rome_evm_client::indexer::{BlockType, EthereumBlockStorage, SolanaBlockStorage},
+    rome_sdk::rome_evm_client::indexer::{BlockType, EthereumBlockStorage},
 };
 
 #[async_trait]
-impl<S: SolanaBlockStorage + 'static, E: EthereumBlockStorage + 'static> EthServer for Proxy<S, E> {
+impl<E: EthereumBlockStorage + 'static> EthServer for Proxy<E> {
     async fn eth_get_balance(&self, address: Address, _block: String) -> ApiResult<U256> {
         let result = self
             .rome_evm_client
@@ -77,10 +77,7 @@ impl<S: SolanaBlockStorage + 'static, E: EthereumBlockStorage + 'static> EthServ
     }
 
     async fn eth_call(&self, call: TransactionRequest, _block: String) -> ApiResult<Bytes> {
-        let result = self
-            .rome_evm_client
-            .call(&call)
-            .map_err(ApiError::RomeEvmError);
+        let result = self.rome_evm_client.call(&call).map_err(|e| e.into());
         tracing::info!("eth_call: {:?}", result);
         result
     }
@@ -160,5 +157,22 @@ impl<S: SolanaBlockStorage + 'static, E: EthereumBlockStorage + 'static> EthServ
 
         tracing::info!("eth_fee_history({:?}): {:?}", block_number, result);
         result
+    }
+
+    async fn web3_client_version(&self) -> ApiResult<String> {
+        Ok("proxy-version".to_string())
+    }
+
+    async fn eth_get_storage_at(&self, address: Address, slot: U256, _block: String) -> ApiResult<String> {
+        let value = self.rome_evm_client.eth_get_storage_at(address, slot).map_err(ApiError::from)?;
+        let mut buf = [0_u8; 32];
+        value.to_big_endian(&mut buf);
+        let hex = format!("0x{}", hex::encode(buf));
+
+        Ok(hex)
+    }
+
+    async fn eth_max_priority_fee_per_gas(&self) -> ApiResult<U256> {
+        Ok(U256::zero())
     }
 }

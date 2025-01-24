@@ -7,7 +7,7 @@ on:
         type: string
         description: 'rome_evm branch name to use for building the image'
         required: false
-        default: 'master'
+        default: 'main'
       rome_sdk_ref_name:
         type: string
         description: 'rome_sdk branch name to use for building the image'

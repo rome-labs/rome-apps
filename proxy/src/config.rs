@@ -1,3 +1,4 @@
+use rome_sdk::rome_evm_client::indexer;
 use rome_sdk::rome_evm_client::resources::PayerConfig;
 use rome_sdk::rome_solana::config::SolanaConfig;
 use solana_sdk::clock::Slot;
@@ -12,4 +13,6 @@ pub struct ProxyConfig {
     pub payers: Vec<PayerConfig>,
     pub proxy_host: SocketAddr,
     pub max_slot_history: Option<Slot>,
+    pub ethereum_storage: indexer::config::EthereumStorageConfig,
+    pub block_loader_batch_size: Option<Slot>,
 }

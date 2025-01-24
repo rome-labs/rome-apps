@@ -38,8 +38,8 @@ rome-da = { path = "../rome-sdk/rome-da" }
 ethers = "2.0.14"
 
 # solana
-solana-sdk = "1.18.17"
-solana-client = "1.18.17"
+solana-sdk = "2.1.7"
+solana-client = "2.1.7"
 
 [patch.crates-io.aes-gcm-siv]
 git = "https://github.com/RustCrypto/AEADs"

@@ -28,3 +28,4 @@ solana-client = { workspace = true }
 
 # rome
 rome-sdk = { workspace = true }
+ethers = {workspace = true}

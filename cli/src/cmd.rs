@@ -1,14 +1,14 @@
 use rome_sdk::rome_evm_client::indexer::EthereumBlockStorage;
 use {
     crate::program_option::Cmd,
-    rome_sdk::rome_evm_client::{indexer::SolanaBlockStorage, RomeEVMClient as Client},
+    rome_sdk::rome_evm_client::RomeEVMClient as Client,
     solana_sdk::signature::{read_keypair_file, Signer},
     std::path::Path,
 };
 
-pub async fn execute<S: SolanaBlockStorage + 'static, E: EthereumBlockStorage + 'static>(
+pub async fn execute<E: EthereumBlockStorage + 'static>(
     cmd: Cmd,
-    client: &Client<S, E>,
+    client: &Client<E>,
 ) -> anyhow::Result<()> {
     match cmd {
         Cmd::CreateBalance {

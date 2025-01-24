@@ -23,14 +23,11 @@ impl From<ApiError> for ErrorObjectOwned {
     fn from(e: ApiError) -> ErrorObjectOwned {
         match e {
             ApiError::ResponseFailed(e) => e,
-            ApiError::RomeEvmError(RomeEvmError::Revert(mes, data)) => {
-                let data_hex = format!("0x{}", hex::encode(data));
-                if mes.is_empty() {
-                    ErrorObjectOwned::owned(3, "execution reverted", Some(data_hex))
-                } else {
-                    let str = format!("execution reverted: {}", mes);
-                    ErrorObjectOwned::owned(3, str, Some(data_hex))
-                }
+            ApiError::RomeEvmError(RomeEvmError::EmulationRevert(mes, data)) => {
+                ErrorObjectOwned::owned(3, mes, Some(data))
+            }
+            ApiError::RomeEvmError(RomeEvmError::EmulationError(err)) => {
+                ErrorObjectOwned::owned(3, err, None::<String>)
             }
             _ => ErrorObjectOwned::borrowed(CALL_EXECUTION_FAILED_CODE, "", None),
         }

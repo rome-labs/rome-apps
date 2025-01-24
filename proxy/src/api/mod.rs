@@ -33,14 +33,11 @@ impl From<ApiError> for ErrorObjectOwned {
     fn from(e: ApiError) -> ErrorObjectOwned {
         match e {
             ApiError::ResponseFailed(e) => e,
-            ApiError::RomeEvmError(RomeEvmError::Revert(mes, data)) => {
-                let data_hex = format!("0x{}", hex::encode(data));
-                if mes.is_empty() {
-                    ErrorObjectOwned::owned(3, "execution reverted", Some(data_hex))
-                } else {
-                    let str = format!("execution reverted: {}", mes);
-                    ErrorObjectOwned::owned(3, str, Some(data_hex))
-                }
+            ApiError::RomeEvmError(RomeEvmError::EmulationRevert(mes, data)) => {
+                ErrorObjectOwned::owned(3, mes, Some(data))
+            }
+            ApiError::RomeEvmError(RomeEvmError::EmulationError(err)) => {
+                ErrorObjectOwned::owned(3, err, None::<String>)
             }
             _ => ErrorObjectOwned::borrowed(CALL_EXECUTION_FAILED_CODE, "", None),
         }
@@ -115,4 +112,12 @@ pub trait Eth {
         block_number: BlockId,
         reward_percentiles: Vec<f64>,
     ) -> ApiResult<FeeHistory>;
+    #[method(name = "web3_clientVersion")]
+    async fn web3_client_version(&self) -> ApiResult<String>;
+
+    #[method(name = "eth_getStorageAt")]
+    async fn eth_get_storage_at(&self, address: Address, slot: U256, block: String) -> ApiResult<String>;
+
+    #[method(name= "eth_maxPriorityFeePerGas")]
+    async fn eth_max_priority_fee_per_gas(&self) -> ApiResult<U256>;
 }

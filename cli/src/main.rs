@@ -31,7 +31,6 @@ async fn main() -> anyhow::Result<()> {
         cli.program_id,
         tower,
         Confirmed,
-        Arc::new(inmemory::SolanaBlockStorage::new()),
         Arc::new(inmemory::EthereumBlockStorage::new(chain_id)),
         vec![],
     );

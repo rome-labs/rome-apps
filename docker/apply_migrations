@@ -5,4 +5,5 @@ if [ -z "$DATABASE_URL" ]; then
   exit 1
 fi
 
+ls -la ./migrations
 ./diesel migration run
