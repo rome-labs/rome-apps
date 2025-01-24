@@ -78,7 +78,7 @@ jobs:
       rome_apps_ref_name: ${{ needs.prepare_env.outputs.rome_apps_ref_name }}
       
   reusable-wf-tests:
-    uses: rome-labs/tests/.github/workflows/reusable_wf_tests.yml@master
+    uses: rome-labs/tests/.github/workflows/reusable_wf_tests.yml@main
     needs: [prepare_env, reusable-wf-build]
     secrets: inherit
     with:
