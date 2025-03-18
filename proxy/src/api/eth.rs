@@ -163,8 +163,16 @@ impl<E: EthereumBlockStorage + 'static> EthServer for Proxy<E> {
         Ok("proxy-version".to_string())
     }
 
-    async fn eth_get_storage_at(&self, address: Address, slot: U256, _block: String) -> ApiResult<String> {
-        let value = self.rome_evm_client.eth_get_storage_at(address, slot).map_err(ApiError::from)?;
+    async fn eth_get_storage_at(
+        &self,
+        address: Address,
+        slot: U256,
+        _block: String,
+    ) -> ApiResult<String> {
+        let value = self
+            .rome_evm_client
+            .eth_get_storage_at(address, slot)
+            .map_err(ApiError::from)?;
         let mut buf = [0_u8; 32];
         value.to_big_endian(&mut buf);
         let hex = format!("0x{}", hex::encode(buf));

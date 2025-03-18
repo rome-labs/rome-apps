@@ -116,8 +116,13 @@ pub trait Eth {
     async fn web3_client_version(&self) -> ApiResult<String>;
 
     #[method(name = "eth_getStorageAt")]
-    async fn eth_get_storage_at(&self, address: Address, slot: U256, block: String) -> ApiResult<String>;
+    async fn eth_get_storage_at(
+        &self,
+        address: Address,
+        slot: U256,
+        block: String,
+    ) -> ApiResult<String>;
 
-    #[method(name= "eth_maxPriorityFeePerGas")]
+    #[method(name = "eth_maxPriorityFeePerGas")]
     async fn eth_max_priority_fee_per_gas(&self) -> ApiResult<U256>;
 }

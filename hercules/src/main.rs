@@ -4,6 +4,7 @@ use tokio::signal;
 use self::cli::Cli;
 use self::config::HerculesConfig;
 use crate::api::admin::HerculesAdmin;
+use crate::config::HerculesMode;
 use anyhow::bail;
 use dotenv::dotenv;
 use ethers::providers::Http;
@@ -14,11 +15,11 @@ use rome_sdk::rome_evm_client::indexer::{
 use rome_sdk::rome_geth::engine::engine_api_block_producer::EngineAPIBlockProducer;
 use rome_sdk::rome_geth::engine::GethEngine;
 use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::clock::Slot;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
 use std::sync::Arc;
-use solana_sdk::clock::Slot;
 
 mod api;
 mod cli;
@@ -41,33 +42,44 @@ async fn get_app_handles<S: SolanaBlockStorage + 'static, E: EthereumBlockStorag
         },
     ));
 
-    Ok((
-        HerculesAdmin::new(
-            solana_block_storage.clone(),
-            ethereum_block_storage.clone(),
-            Some(indexer_started_rx),
-        )
-        .start_rpc_server(config.admin_rpc)
-        .await?,
-        StandaloneIndexer {
-            solana_client,
-            commitment_level: config.solana.commitment,
-            rome_evm_pubkey: program_id,
-            solana_block_storage,
-            ethereum_block_storage,
-            block_producer: EngineAPIBlockProducer::new(
-                Arc::new(geth_engine),
-                ethers::providers::Provider::<Http>::try_from(&config.geth_api)?,
-            ),
-        }
-        .start_indexing(
+    let indexer = StandaloneIndexer {
+        solana_client,
+        commitment_level: config.solana.commitment,
+        rome_evm_pubkey: program_id,
+        solana_block_storage: solana_block_storage.clone(),
+        ethereum_block_storage: ethereum_block_storage.clone(),
+        block_producer: EngineAPIBlockProducer::new(
+            Arc::new(geth_engine),
+            ethers::providers::Provider::<Http>::try_from(&config.geth_api)?,
+        ),
+    };
+
+    let server_jh = HerculesAdmin::new(
+        solana_block_storage,
+        ethereum_block_storage,
+        Some(indexer_started_rx),
+    )
+    .start_rpc_server(config.admin_rpc)
+    .await?;
+
+    let block_loader_batch_size = config.block_loader_batch_size.unwrap_or(DEFAULT_BLOCK_LOADER_BATCH_SIZE);
+
+    let indexer_jh = match config.mode.clone().unwrap_or(HerculesMode::Indexer) {
+        HerculesMode::Indexer => indexer.start_indexing(
             config.start_slot,
             Some(indexer_started_tx),
             400,
             config.max_slot_history,
-            config.block_loader_batch_size.unwrap_or(DEFAULT_BLOCK_LOADER_BATCH_SIZE),
+            block_loader_batch_size,
         ),
-    ))
+        HerculesMode::Recovery => indexer.start_recovery(
+            config.start_slot.unwrap_or_else(|| panic!("start_slot is required for recovery")),
+            config.end_slot,
+            block_loader_batch_size,
+        ),
+    };
+
+    Ok((server_jh, indexer_jh))
 }
 
 #[tokio::main]
@@ -106,10 +118,10 @@ async fn main() -> anyhow::Result<()> {
     // Shutdown on ctrl-c
     tokio::select! {
         res = indexer_jh => {
-            bail!("Rhea Service Exited: {:?}", res);
+            bail!("Hercules Service Exited: {:?}", res);
         },
         res = signal::ctrl_c() => {
-            bail!("Shutting down Rhea: {:?}", res);
+            bail!("Shutting down Hercules: {:?}", res);
         },
     }
 }

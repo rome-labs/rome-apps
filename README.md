@@ -85,6 +85,3 @@ Options:
 `./cli --program-id CaQC27sVhdPyZF7defivoTQ48E8ws4tXvJfXYPRXboaH --chain-id 1001 --url http://localhost:8899 get-storage-at 0x229E93198d584C397DFc40024d1A3dA10B73aB32 0`
 
 `./cli --program-id CaQC27sVhdPyZF7defivoTQ48E8ws4tXvJfXYPRXboaH --url http://localhost:8899 get-rollups`
-
-
-

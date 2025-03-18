@@ -15,12 +15,12 @@ use rome_sdk::rome_evm_client::indexer::{pg_storage, EthereumBlockStorage};
 use rome_sdk::rome_evm_client::{indexer::inmemory, resources::Payer, RomeEVMClient};
 use rome_sdk::rome_solana::indexers::clock::SolanaClockIndexer;
 use rome_sdk::rome_solana::tower::SolanaTower;
+use rome_sdk::rome_solana::types::AsyncAtomicRpcClient;
+use solana_sdk::clock::Slot;
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
-use rome_sdk::rome_solana::types::AsyncAtomicRpcClient;
 use tokio::signal;
 use tokio::task::JoinHandle;
-use solana_sdk::clock::Slot;
 
 const DEFAULT_BLOCK_LOADER_BATCH_SIZE: Slot = 128;
 
@@ -51,7 +51,9 @@ async fn get_app_handles<E: EthereumBlockStorage + 'static>(
     let join_handle = if inmemory_idx {
         let start_slot = config.start_slot;
         let max_slot_history = config.max_slot_history;
-        let block_loader_batch_size =  config.block_loader_batch_size.unwrap_or(DEFAULT_BLOCK_LOADER_BATCH_SIZE);
+        let block_loader_batch_size = config
+            .block_loader_batch_size
+            .unwrap_or(DEFAULT_BLOCK_LOADER_BATCH_SIZE);
         tokio::spawn(async move {
             tokio::select! {
                 res = rome_evm_client.start_indexing(
