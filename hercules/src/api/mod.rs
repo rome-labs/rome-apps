@@ -3,7 +3,10 @@ pub mod admin;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::CALL_EXECUTION_FAILED_CODE;
 use jsonrpsee::types::ErrorObjectOwned;
-use rome_sdk::rome_evm_client::error::RomeEvmError;
+use rome_sdk::rome_evm_client::{
+    error::RomeEvmError,
+    indexer::{ProducedBlocks, ProducerParams},
+};
 use solana_sdk::clock::Slot;
 use thiserror::Error;
 
@@ -52,4 +55,19 @@ pub trait Admin {
 
     #[method(name = "lastEthereumStorageSlot")]
     async fn last_ethereum_storage_slot(&self) -> ApiResult<Option<Slot>>;
+}
+
+#[rpc(server)]
+pub trait BlockProduction {
+    #[method(name = "getPendingBlocks")]
+    async fn get_pending_blocks(&self) -> ApiResult<Option<ProducerParams>>;
+
+    #[method(name = "blocksProduced")]
+    async fn blocks_produced(&self, produced_blocks: ProducedBlocks) -> ApiResult<()>;
+}
+
+#[rpc(server)]
+pub trait TestingAPI {
+    #[method(name = "insertDeposit")]
+    async fn deposit(&self) -> ApiResult<()>;
 }

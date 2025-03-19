@@ -17,7 +17,7 @@ pub struct MempoolSender {
 }
 
 impl MempoolSender {
-    pub fn new(
+    pub fn init(
         sender_addr: String,
         rome: Arc<Rome>,
         sender_ttl: Duration,

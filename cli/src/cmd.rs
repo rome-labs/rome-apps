@@ -1,4 +1,3 @@
-use rome_sdk::rome_evm_client::indexer::EthereumBlockStorage;
 use {
     crate::program_option::Cmd,
     rome_sdk::rome_evm_client::RomeEVMClient as Client,
@@ -6,10 +5,7 @@ use {
     std::path::Path,
 };
 
-pub async fn execute<E: EthereumBlockStorage + 'static>(
-    cmd: Cmd,
-    client: &Client<E>,
-) -> anyhow::Result<()> {
+pub async fn execute(cmd: Cmd, client: &Client) -> anyhow::Result<()> {
     match cmd {
         Cmd::CreateBalance {
             address,

@@ -9,11 +9,11 @@ use {
         Address, BlockId, Bytes, FeeHistory, Transaction, TransactionReceipt, TransactionRequest,
         TxHash, H256, U256, U64,
     },
-    rome_sdk::rome_evm_client::indexer::{BlockType, EthereumBlockStorage},
+    rome_sdk::rome_evm_client::indexer::BlockType,
 };
 
 #[async_trait]
-impl<E: EthereumBlockStorage + 'static> EthServer for Proxy<E> {
+impl EthServer for Proxy {
     async fn eth_get_balance(&self, address: Address, _block: String) -> ApiResult<U256> {
         let result = self
             .rome_evm_client

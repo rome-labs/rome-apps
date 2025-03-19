@@ -9,29 +9,20 @@ clap = { workspace = true, features = ["derive"] }
 dotenv = { workspace = true }
 
 # codec
-url = { workspace = true }
-hex = { workspace = true }
 serde = { workspace = true }
-serde_yaml = { workspace = true }
-serde_json = { workspace = true }
 
 # log
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["json"] }
 
 # async
-async-trait = { workspace = true }
 tokio = { workspace = true }
-tokio-util = { workspace = true }
 
 # solana
 solana-sdk = { workspace = true }
-solana-client = { workspace = true }
 
 # rome
 rome-sdk = { workspace = true }
-rome-da = { workspace = true }
 
 # evm
 ethers = { workspace = true }
-futures = "0.3.30"

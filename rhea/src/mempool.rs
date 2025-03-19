@@ -32,8 +32,7 @@ impl MempoolImpl {
     }
 
     pub async fn update(&mut self, geth_txs: &GethTxPoolResult) -> Vec<TxHash> {
-        let mut new_txs = Vec::new();
-        new_txs.reserve(geth_txs.queued.len() + geth_txs.pending.len());
+        let mut new_txs = Vec::with_capacity(geth_txs.queued.len() + geth_txs.pending.len());
 
         for (sender, queued_txs) in geth_txs.queued.iter() {
             for (nonce, tx) in queued_txs {
@@ -75,7 +74,7 @@ impl MempoolImpl {
             .senders
             .entry(sender.clone())
             .or_insert_with(|| {
-                MempoolSender::new(
+                MempoolSender::init(
                     sender.clone(),
                     self.rome.clone(),
                     self.sender_ttl,

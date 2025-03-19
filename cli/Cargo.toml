@@ -12,3 +12,4 @@ tokio = { workspace = true }
 ethers = { workspace = true }
 rome-sdk = { workspace = true }
 hex = { workspace = true }
+async-trait = {workspace = true}

@@ -25,13 +25,13 @@ async fn main() -> anyhow::Result<()> {
         .expect("create solana clock indexer error");
     let clock = solana_clock_indexer.get_current_clock();
     let tower = SolanaTower::new(rpc_client, clock);
-    let chain_id = cli.chain_id.unwrap_or_default();
 
     let client = Client::new(
+        cli.chain_id.unwrap(),
         cli.program_id,
         tower,
         Confirmed,
-        Arc::new(inmemory::EthereumBlockStorage::new(chain_id)),
+        Arc::new(inmemory::EthereumBlockStorage),
         vec![],
     );
 

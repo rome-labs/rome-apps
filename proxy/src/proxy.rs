@@ -3,19 +3,18 @@ use anyhow::Context;
 use jsonrpsee::server::{ServerBuilder, ServerHandle};
 use jsonrpsee::RpcModule;
 
-use rome_sdk::rome_evm_client::indexer::EthereumBlockStorage;
 use rome_sdk::rome_evm_client::RomeEVMClient;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
 #[derive(Clone)]
-pub struct Proxy<E: EthereumBlockStorage + 'static> {
-    pub rome_evm_client: Arc<RomeEVMClient<E>>,
+pub struct Proxy {
+    pub rome_evm_client: Arc<RomeEVMClient>,
 }
 
-impl<E: EthereumBlockStorage + 'static> Proxy<E> {
+impl Proxy {
     /// Create a new instance of the [Proxy]
-    pub fn new(rome_evm_client: Arc<RomeEVMClient<E>>) -> Self {
+    pub fn new(rome_evm_client: Arc<RomeEVMClient>) -> Self {
         Self { rome_evm_client }
     }
 

@@ -37,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
     let rhea_service_jh = RheaService::start(
         rome,
         config.geth_indexer,
-        config.mempool_ttl.map(|sec| Duration::from_secs(sec)),
+        config.mempool_ttl.map(Duration::from_secs),
     );
 
     tokio::select! {
