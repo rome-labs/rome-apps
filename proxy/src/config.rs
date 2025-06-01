@@ -23,7 +23,7 @@ pub struct ProxyConfig {
     pub proxy_host: SocketAddr,
     pub max_slot_history: Option<Slot>,
     pub ethereum_storage: EthereumStorageConfig,
-    pub block_loader_batch_size: Option<Slot>,
+    pub gas_price: u128,
 }
 
 impl ProxyConfig {
@@ -42,6 +42,7 @@ impl ProxyConfig {
             self.solana.commitment,
             ethereum_block_storage,
             payers,
+            self.gas_price.into(),
         ));
 
         // Start the proxy server

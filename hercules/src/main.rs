@@ -1,8 +1,9 @@
 use self::cli::Cli;
 use self::config::HerculesConfig;
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use clap::Parser;
 use dotenv::dotenv;
+use rome_obs::Otel;
 use tokio::signal;
 
 mod api;
@@ -12,7 +13,9 @@ mod config;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
-    tracing_subscriber::fmt().json().init();
+
+    Otel::init_from_env("hercules").map_err(|e| anyhow!(e.to_string()))?;
+
     let config: HerculesConfig = Cli::parse().load_config().await?;
 
     let (_admin_server, indexer_jh) = config.init().await?;

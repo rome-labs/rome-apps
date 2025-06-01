@@ -59,10 +59,12 @@ impl MempoolImpl {
         }
     }
 
+    #[tracing::instrument(name = "rhea::remove_sender", skip(self))]
     pub async fn remove_sender(&mut self, sender_address: String) {
         self.senders.remove(&sender_address);
     }
 
+    #[tracing::instrument(name = "rhea::add_tx", skip(self), fields(tx_hash = ?tx.hash))]
     async fn add_tx(&mut self, sender: String, nonce: u64, tx: GethTxPoolTx) -> bool {
         let tx_hash = tx.hash;
         let None = self.transactions.insert(tx_hash, (sender.clone(), nonce)) else {

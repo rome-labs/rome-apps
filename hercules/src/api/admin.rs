@@ -1,5 +1,5 @@
 use crate::api::ApiError::Hercules;
-use crate::api::{AdminServer, ApiResult, BlockProductionServer, TestingAPIServer};
+use crate::api::{AdminServer, ApiResult, BlockProductionServer};
 use anyhow::Context;
 use async_trait::async_trait;
 use jsonrpsee::server::{ServerBuilder, ServerHandle};
@@ -78,13 +78,6 @@ impl BlockProductionServer for Arc<HerculesAdmin> {
         }
 
         Ok(())
-    }
-}
-
-#[async_trait]
-impl TestingAPIServer for Arc<HerculesAdmin> {
-    async fn deposit(&self) -> ApiResult<()> {
-        todo!()
     }
 }
 

@@ -23,6 +23,8 @@ solana-sdk = { workspace = true }
 
 # rome
 rome-sdk = { workspace = true }
+rome-obs = { workspace = true }
 
 # evm
 ethers = { workspace = true }
+

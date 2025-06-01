@@ -14,21 +14,14 @@ use {
 
 #[async_trait]
 impl EthServer for Proxy {
-    async fn eth_get_balance(&self, address: Address, _block: String) -> ApiResult<U256> {
-        let result = self
-            .rome_evm_client
-            .get_balance(address)
-            .map_err(ApiError::RomeEvmError)?;
-        tracing::info!("eth_get_balance: {:?} {:?}", address, result);
-        Ok(result)
-    }
-
+    #[tracing::instrument(name = "proxy::eth_chain_id", skip(self))]
     async fn eth_chain_id(&self) -> ApiResult<U64> {
         let result = self.rome_evm_client.chain_id();
         tracing::info!("eth_chain_id: {:?}", result);
         Ok(result.into())
     }
 
+    #[tracing::instrument(name = "proxy::eth_block_number", skip(self))]
     async fn eth_block_number(&self) -> ApiResult<U64> {
         let result = self
             .rome_evm_client
@@ -39,6 +32,18 @@ impl EthServer for Proxy {
         result
     }
 
+    #[tracing::instrument(name = "proxy::eth_get_balance", skip(self), fields(address = ?address))]
+    async fn eth_get_balance(&self, address: Address, _block: String) -> ApiResult<U256> {
+        let result = self
+            .rome_evm_client
+            .get_balance(address)
+            .map_err(ApiError::RomeEvmError)?;
+
+        tracing::info!("eth_get_balance: {:?} {:?}", address, result);
+        Ok(result)
+    }
+
+    #[tracing::instrument(name = "proxy::eth_gas_price", skip(self))]
     async fn eth_gas_price(&self) -> ApiResult<U256> {
         let result = self
             .rome_evm_client
@@ -48,6 +53,7 @@ impl EthServer for Proxy {
         result
     }
 
+    #[tracing::instrument(name = "proxy::eth_get_block_by_number", skip(self), fields(block_number = ?block_number))]
     async fn eth_get_block_by_number(
         &self,
         block_number: BlockId,
@@ -62,6 +68,7 @@ impl EthServer for Proxy {
         result
     }
 
+    #[tracing::instrument(name = "proxy::eth_get_block_by_hash", skip(self), fields(block_hash = %block_hash))]
     async fn eth_get_block_by_hash(
         &self,
         block_hash: H256,
@@ -76,12 +83,14 @@ impl EthServer for Proxy {
         result
     }
 
+    #[tracing::instrument(name = "proxy::eth_call", skip(self))]
     async fn eth_call(&self, call: TransactionRequest, _block: String) -> ApiResult<Bytes> {
         let result = self.rome_evm_client.call(&call).map_err(|e| e.into());
         tracing::info!("eth_call: {:?}", result);
         result
     }
 
+    #[tracing::instrument(name = "proxy::eth_get_transaction_count", skip(self), fields(address = ?address))]
     async fn eth_get_transaction_count(&self, address: Address, _block: String) -> ApiResult<U64> {
         let result = self
             .rome_evm_client
@@ -91,6 +100,7 @@ impl EthServer for Proxy {
         result
     }
 
+    #[tracing::instrument(name = "proxy::eth_estimate_gas", skip(self))]
     async fn eth_estimate_gas(&self, call: TransactionRequest) -> ApiResult<U256> {
         let result = self
             .rome_evm_client
@@ -100,6 +110,7 @@ impl EthServer for Proxy {
         result
     }
 
+    #[tracing::instrument(name = "proxy::eth_get_code", skip(self), fields(address = ?address))]
     async fn eth_get_code(&self, address: Address, _block: String) -> ApiResult<Bytes> {
         let result = self
             .rome_evm_client
@@ -109,6 +120,7 @@ impl EthServer for Proxy {
         result
     }
 
+    #[tracing::instrument(name = "proxy::eth_send_raw_transaction", skip(self))]
     async fn eth_send_raw_transaction(&self, rlp: Bytes) -> ApiResult<TxHash> {
         let result = self
             .rome_evm_client
@@ -120,12 +132,14 @@ impl EthServer for Proxy {
         result
     }
 
+    #[tracing::instrument(name = "proxy::net_version", skip(self))]
     async fn net_version(&self) -> ApiResult<U64> {
         let result = self.rome_evm_client.chain_id();
         tracing::info!("net_version: {result}");
         Ok(result.into())
     }
 
+    #[tracing::instrument(name = "proxy::eth_get_transaction_receipt", skip(self), fields(tx_hash = ?tx_hash))]
     async fn eth_get_transaction_receipt(
         &self,
         tx_hash: H256,
@@ -136,6 +150,7 @@ impl EthServer for Proxy {
             .map_err(|err| err.into())
     }
 
+    #[tracing::instrument(name = "proxy::eth_get_transaction_by_hash", skip(self), fields(tx_hash = ?tx_hash))]
     async fn eth_get_transaction_by_hash(&self, tx_hash: H256) -> ApiResult<Option<Transaction>> {
         self.rome_evm_client
             .get_transaction(&tx_hash)
@@ -143,6 +158,7 @@ impl EthServer for Proxy {
             .map_err(|err| err.into())
     }
 
+    #[tracing::instrument(name = "proxy::eth_fee_history", skip(self), fields(block_number = ?block_number))]
     async fn eth_fee_history(
         &self,
         count: u64,
@@ -159,10 +175,12 @@ impl EthServer for Proxy {
         result
     }
 
+    #[tracing::instrument(name = "proxy::web3_client_version", skip(self))]
     async fn web3_client_version(&self) -> ApiResult<String> {
         Ok("proxy-version".to_string())
     }
 
+    #[tracing::instrument(name = "proxy::eth_get_storage_at", skip(self, slot, _block), fields(address = ?address))]
     async fn eth_get_storage_at(
         &self,
         address: Address,
@@ -180,6 +198,7 @@ impl EthServer for Proxy {
         Ok(hex)
     }
 
+    #[tracing::instrument(name = "proxy::eth_max_priority_fee_per_gas", skip(self))]
     async fn eth_max_priority_fee_per_gas(&self) -> ApiResult<U256> {
         Ok(U256::zero())
     }

@@ -3,6 +3,7 @@ mod program_option;
 
 use {
     clap::Parser,
+    ethers::types::U256,
     program_option::Cli,
     rome_sdk::rome_evm_client::{indexer::inmemory, RomeEVMClient as Client},
     rome_sdk::rome_solana::{indexers::clock::SolanaClockIndexer, tower::SolanaTower},
@@ -33,6 +34,7 @@ async fn main() -> anyhow::Result<()> {
         Confirmed,
         Arc::new(inmemory::EthereumBlockStorage),
         vec![],
+        U256::exp10(9),
     );
 
     cmd::execute(cli.cmd, &client).await

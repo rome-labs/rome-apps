@@ -23,7 +23,7 @@ jobs:
       OPENZEPPELIN_VERSION: "latest"
 
       # Set the tests list to run 
-      TESTS_LIST: "tests,uniswap_geth,uniswap_proxy"
+      TESTS_LIST: "evm,spl,state_comparison,uniswap_proxy,uniswap_op_geth"
 
     outputs:
       docker_image_tags: ${{ steps.prepare_docker_image_tags.outputs.docker_image_tags }}
@@ -102,4 +102,3 @@ jobs:
           docker pull romelabs/rome-apps:${{ needs.prepare_env.outputs.rome_apps_ref_name }}
           docker tag romelabs/rome-apps:${{ needs.prepare_env.outputs.rome_apps_ref_name }} romelabs/rome-apps:latest
           docker push romelabs/rome-apps:latest
-        

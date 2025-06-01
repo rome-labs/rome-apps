@@ -26,18 +26,27 @@ pub struct Cli {
 pub enum Cmd {
     /// registry a rollup in rome-evm contract
     RegRollup {
-        /// rollup owner Pubkey
-        rollup_owner: Pubkey,
         /// path to upgrade-authority keypair of the rome-evm contract
         upgrade_authority: String,
     },
-    /// create balance on the address of the rollup owner; used to synchronize the initial state of rollup with the state of op-geth
-    CreateBalance {
-        /// the contract owner's address to mint a balance
+    /// Depositing funds to the rome-evm balance account.
+    /// Special type 0x7E of rlp is used.
+    /// Rome-evm mints the funds on the user account.
+    /// SOLs are transferred from the solana user's wallet to rome-evm wallet.
+    ///
+    /// Rate: 1 SOL = 1 rome-evm token
+    ///
+    /// The amount in Wei is used as rlp.mint.
+    /// This amount must be multiple of 10^9, because the precision of rome-evm token is 10^18,
+    /// precision of native SOL token is 10^9.
+    ///
+    /// This solana transaction must be signed by solana user's wallet private key.
+    Deposit {
+        /// the user's address to mint a balance
         address: Address,
-        /// balance to mint
+        /// balance in Wei to mint
         balance: u128,
-        /// path to rollup owner keypair
+        /// path to user's solana wallet keypair; the funds will be debited from this account (lamports = balance/10^9)
         keypair: String,
     },
     /// get balance

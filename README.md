@@ -24,19 +24,18 @@ Options:
 
 ##### Registry a rollup in rome-evm contract
 
-`cli --program-id <PROGRAM_ID> --chain-id <CHAIN_ID> --url <URL> reg-rollup <ROLLUP_OWNER> <UPGRADE_AUTHORITY>`
+`cli --program-id <PROGRAM_ID> --chain-id <CHAIN_ID> --url <URL> reg-rollup <UPGRADE_AUTHORITY>`
 
-* `<ROLLUP_OWNER>`       rollup owner Pubkey
 * `<UPGRADE_AUTHORITY>`  path to upgrade-authority keypair of the rome-evm contract
 
 
-##### Create balance on the address of the rollup owner
+##### Deposit funds to the address
 
-`cli --program-id <PROGRAM_ID> --chain-id <CHAIN_ID> --url <URL> create-balance <ADDRESS> <BALANCE> <KEYPAIR>`
+`cli --program-id <PROGRAM_ID> --chain-id <CHAIN_ID> --url <URL> deposit <ADDRESS> <BALANCE> <KEYPAIR>`
 
 * `<ADDRESS>`  the contract owner's address to mint a balance
-* `<BALANCE>`  balance to mint
-* `<KEYPAIR>`  path to rollup owner keypair
+* `<BALANCE>`  balance in Wei to mint, must be multiple of 10^9
+* `<KEYPAIR>`  path to user's solana wallet keypair; the funds will be debited from this account (lamports = balance/10^9) 
 
 
 ##### Get balance
@@ -74,9 +73,9 @@ Options:
 *
 
 #### Example
-`./cli --program-id CaQC27sVhdPyZF7defivoTQ48E8ws4tXvJfXYPRXboaH --chain-id 1001 --url http://localhost:8899 reg-rollup FvzoxsNHajMvErQmMsn9h8ndAXweo3vqn9gfEgAdpPka /opt/ci/upgrade-authority-keypair.json`
+`./cli --program-id CaQC27sVhdPyZF7defivoTQ48E8ws4tXvJfXYPRXboaH --chain-id 1001 --url http://localhost:8899 reg-rollup /opt/ci/upgrade-authority-keypair.json`
 
-`./cli --program-id CaQC27sVhdPyZF7defivoTQ48E8ws4tXvJfXYPRXboaH --chain-id 1001 --url http://localhost:8899 create-balance 0xe235b9caf55b58863Ae955A372e49362b0f93726 1000 /opt/ci/rollup-owner-keypair.json`
+`./cli --program-id CaQC27sVhdPyZF7defivoTQ48E8ws4tXvJfXYPRXboaH --chain-id 1001 --url http://localhost:8899 deposit 0xe235b9caf55b58863Ae955A372e49362b0f93726 1000000000000000000 /opt/ci/test-account-keypair.json`
 
 `./cli --program-id CaQC27sVhdPyZF7defivoTQ48E8ws4tXvJfXYPRXboaH --chain-id 1001 --url http://localhost:8899 get-balance 0x229E93198d584C397DFc40024d1A3dA10B73aB32`
 

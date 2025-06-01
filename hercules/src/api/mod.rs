@@ -65,9 +65,3 @@ pub trait BlockProduction {
     #[method(name = "blocksProduced")]
     async fn blocks_produced(&self, produced_blocks: ProducedBlocks) -> ApiResult<()>;
 }
-
-#[rpc(server)]
-pub trait TestingAPI {
-    #[method(name = "insertDeposit")]
-    async fn deposit(&self) -> ApiResult<()>;
-}

@@ -5,15 +5,16 @@ Hercules is an application designed to index Rome-EVM (Ethereum Virtual Machine)
 ## Internal structure
 On the higher level, Hercules consists of several main components. These are:
 
-### 1. Solana RPC Connector
-Interacts with Solana RPC
-
-### 2. Solana Block Loader
-Reads Solana blocks using Solana RPC, filters out Rome-EVM transactions and stores data into Solana Block Storage
+### 2. Solana Block Loader (optional)
+Reads Solana blocks using Solana RPC, filters out Rome-EVM transactions, and stores data into Solana Block Storage.
+This component is optional and MUST be omitted in case if using Solana Block Storage in Relayer mode.
+It is possible also to omit Solana Block Loader if you use Solana blocks tables constantly replicated from another 
+instance of Postgres DB where blocks are available. 
 
 ### 3. Solana Block Storage
-Stores solana blocks and Rome-EVM transactions in a persistent manner. Currently, one implementation of Solana Block
-Storage is available - this implementation uses PostgreSQL DB as a storage backend
+Stores solana blocks persistently. There are 2 implementations of Solana Block Storage:
+  - PgStorage - stores all Solana blocks in PostgreSQL DB
+  - Relayer - reads Solana blocks from Relayer RPC API
 
 ### 4. Rollup Indexer
 Central component providing integration between Solana and Ethereum representation of data. Includes logic of retries 
@@ -69,11 +70,18 @@ Hercules is requiring environment variable HERCULES_CONFIG to be specified in th
 to the file containing configuration parameters of the service in an YAML/JSON format. Below is the description of each
 section and parameters of this configuration file:
 
-- **solana**
+- **block_loader**
 
-    Parameters of **Solana RPC Connector**
-  - **rpc_url** - URL of Solana RPC API
-  - **commitment** - default commitment level to send requests with. Possible values: **confirmed, finalized**
+  (optional) Parameters of **Solana Block Loader**
+  - **program_id** - base58 address of the Rome-EVM smart-contract on Solana
+  - **batch_size** - how many blocks should Solana Block Loader load in parallel when indexing. This
+    value may increase loading speed on a good network connection and increase number of error if the connection is bad
+  - **block_retries** - how many times should Solana Block Loader retry to load a block if it fails.
+  - **tx_retries** - how many times should Solana Block Loader retry to load a transaction if it fails.
+  - **retry_int_sec** - how long should Solana Block Loader wait (in seconds) before retrying to load a block or transaction.
+  - **commitment** - default commitment level to send requests with. Possible values: **Confirmed, Finalized**
+  - **client** - configuration of the Solana Client.
+    - **providers** - array of URLs of Solana RPC nodes.
 
 
 - **solana_storage**
@@ -86,12 +94,19 @@ section and parameters of this configuration file:
     - **database_url** - connection string in diesel-compatible format: **postgres://\<username\>:\<password\>@\<server\>/\<database\>**
     - **max_connections** - number of parallel connections for the connection pool
     - **connection_timeout_sec** - connection timeout in seconds
+  
+  ### type: relayer - Relayer backend for Solana Block Storage
+  - **relayer_url** - URL of Relayer RPC API.
+  - **connection**
+    - **database_url** - connection string in diesel-compatible format: **postgres://\<username\>:\<password\>@\<server\>/\<database\>**
+    - **max_connections** - number of parallel connections for the connection pool
+    - **connection_timeout_sec** - connection timeout in seconds
 
 
 - **block_parser**
   
   Parameters of **Block Parser**
-  - **program_id** - base58 address of the Rome-EVM smart-contract on Solana
+  - **program_id** - (optional - program_id from block_loader config will be used if absent) base58 address of the Rome-EVM smart-contract on Solana
   - **chain_id** - chain id withing selected Rome-EVM smart-contract
   - **parse_mode** - determines algorithm of block parsing. Can accept values
     - **engine_api** - parsing compatible with Engine API protocol - sequential Rome-EVM transactions with the same gas 
@@ -132,8 +147,6 @@ section and parameters of this configuration file:
 - **start_slot** - number of Solana slot to start indexation at
 - **admin_rpc** - where to expose Admin API. Accepts string of a format: <IPv4_ADDRESS>:<PORT_NUMBER>
 - **max_slot_history (optional)** - how many Solana blocks to store in the Solana Block Storage - all in case if not specified
-- **block_loader_batch_size** - how many blocks should Solana Block Loader to load in parallel when indexing. This
-  value may increase loading speed on a good network connection and increase number of error if the connection is bad
 - **mode** - mode of operation. Possible values are: **Indexer** - normal indexation mode, **Recovery** - recover solana block history (indexation is disabled, Admin API disabled).
 
 ## Supported Configurations
@@ -153,9 +166,18 @@ rollup over op-geth client.
 ### Example:
 
 ```yml
-solana:
-  rpc_url: "http://solana:8899"
+block_loader:
+  program_id: "CmobH2vR6aUtQ8x4xd1LYNiH6k2G7PFT5StTgWqvy2VU"
+  batch_size: 64
+  block_retries: 10
+  tx_retries: 100
+  retry_int_sec: 1
   commitment: "confirmed"
+  client:
+    providers:
+      - "http://solana1:8899"
+      - "http://solana2:8899"
+      - "http://solana3:8899"
 solana_storage:
   type: pg_storage
   connection:
@@ -181,7 +203,6 @@ block_producer:
 start_slot: 0
 admin_rpc: "0.0.0.0:8000"
 max_slot_history: 4096
-block_loader_batch_size: 128
 mode: Indexer
 ```
 
@@ -195,9 +216,18 @@ during block production process
 ### Example:
 
 ```yml
-solana:
-  rpc_url: "http://solana:8899"
+block_loader:
+  program_id: "CmobH2vR6aUtQ8x4xd1LYNiH6k2G7PFT5StTgWqvy2VU"
+  batch_size: 64
+  block_retries: 10
+  tx_retries: 100
+  retry_int_sec: 1
   commitment: "confirmed"
+  client:
+    providers:
+      - "http://solana1:8899"
+      - "http://solana2:8899"
+      - "http://solana3:8899"
 solana_storage:
   type: pg_storage
   connection:
@@ -217,7 +247,6 @@ ethereum_storage:
 start_slot: 0
 admin_rpc: "0.0.0.0:8000"
 max_slot_history: 4096
-block_loader_batch_size: 128
 mode: Indexer
 ```
 
@@ -227,13 +256,22 @@ prepares transaction and block history data for custom Rome-client. This schema 
 User interacts with the rollup over custom Rome-client.
 
 ```yml
-solana:
-  rpc_url: "http://solana:8899"
+block_loader:
+  program_id: "CmobH2vR6aUtQ8x4xd1LYNiH6k2G7PFT5StTgWqvy2VU"
+  batch_size: 64
+  block_retries: 10
+  tx_retries: 100
+  retry_int_sec: 1
   commitment: "confirmed"
+  client:
+    providers:
+      - "http://solana1:8899"
+      - "http://solana2:8899"
+      - "http://solana3:8899"
 solana_storage:
   type: pg_storage
   connection:
-    database_url: "postgres://hercules:qwerty123@postgres/test_rollup"
+    database_url: "postgres://hercules:qwe~~~~rty123@postgres/test_rollup"
     max_connections: 16
     connection_timeout_sec: 30
 block_parser:
@@ -251,6 +289,35 @@ block_producer:
 start_slot: 0
 admin_rpc: "0.0.0.0:8000"
 max_slot_history: 4096
-block_loader_batch_size: 128
 mode: Indexer
 ```
+
+
+
+## Tracing on Otel Telemetry and Logging 
+
+Rhea supports both OpenTelemetry-based tracing and standard output logging.
+
+Tracing is configured via the following environment variables:
+
+- `ENABLE_OTEL_TRACING`: Enables OpenTelemetry tracing. Set this to `true` to activate it.
+- `ENABLE_OTEL_METRICS`: Enables OpenTelemetry metrics collection. Set this to `true` to collect metrics.
+- `OTLP_RECEIVER_URL`: Specifies the OTLP (OpenTelemetry Protocol) receiver endpoint. 
+
+By default, standard output logging is also enabled. You can toggle this behavior using:
+
+- `ENABLE_STDOUT_LOGGING_ENV`: Set to `false` to disable stdout logging if needed.
+
+The proxy will emit tracing data in JSON format to stdout unless overridden, and will export spans and metrics to the configured OTLP receiver if tracing and metrics are enabled.
+
+### Example Docker Compose Configuration
+```yaml
+environment:
+  ENABLE_OTEL_TRACING: true
+  ENABLE_OTEL_METRICS: true
+  OTLP_RECEIVER_URL: http://localhost:4317
+  ENABLE_STDOUT_LOGGING_ENV: true
+```
+
+This setup ensures that all service-level telemetry is collected and available for observability tooling such as Jaeger, Prometheus, or Grafana via the OTLP pipeline.
+

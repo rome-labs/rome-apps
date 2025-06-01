@@ -14,11 +14,11 @@ serde_yaml = "0.9.33"
 hex = "0.4.3"
 
 # jsonrpc server
-jsonrpsee = { version = "0.22.5", features = ["server", "macros"] }
+jsonrpsee = { version = "0.24.8", features = ["server", "macros"] }
 
 # error
 anyhow = "1.0.86"
-thiserror = "1.0.61"
+thiserror = "2.0.11"
 
 # log
 tracing = "0.1.40"
@@ -33,6 +33,7 @@ async-trait = "0.1.80"
 # rome
 rome-sdk = { path = "../rome-sdk/rome-sdk" }
 rome-da = { path = "../rome-sdk/rome-da" }
+rome-obs = { path = "../rome-sdk/rome-obs" }
 
 # evm
 ethers = "2.0.14"
@@ -40,10 +41,6 @@ ethers = "2.0.14"
 # solana
 solana-sdk = "2.1.7"
 solana-client = "2.1.7"
-
-[patch.crates-io.aes-gcm-siv]
-git = "https://github.com/RustCrypto/AEADs"
-rev = "6105d7a5591aefa646a95d12b5e8d3f55a9214ef"
 
 [patch.crates-io.curve25519-dalek]
 git ="https://github.com/block-mesh/curve25519-dalek"

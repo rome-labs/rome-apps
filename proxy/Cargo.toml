@@ -14,8 +14,10 @@ solana-client = { workspace = true }
 thiserror = { workspace = true }
 hex = { workspace = true }
 rome-sdk = { workspace = true }
+rome-obs = { workspace = true }
 ethers = { workspace = true }
 clap = { workspace = true } 
 dotenv = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["json"] }
 tracing = { workspace = true }
+

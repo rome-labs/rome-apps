@@ -4,14 +4,18 @@ mod config;
 mod proxy;
 
 use self::cli::Cli;
+use anyhow::anyhow;
 use clap::Parser;
+use rome_obs::Otel;
 use tokio::signal;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // load any .env and init the logger
     dotenv::dotenv().ok();
-    tracing_subscriber::fmt().json().init();
+
+    Otel::init_from_env("proxy").map_err(|e| anyhow!(e.to_string()))?;
+
     let config = Cli::parse().load_config().await?;
     let (_server, join_handle) = config.init().await?;
 

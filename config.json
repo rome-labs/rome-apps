@@ -15,5 +15,7 @@
     "geth_http_addr": "http://localhost:8545",
     "geth_poll_interval_ms": 1000
   },
-  "proxy_host": "[::]:8545"
+  "proxy_host": "[::]:8545",
+  "relayer_url": "grpc://localhost:8080",
+  "use_relayer": true
 }

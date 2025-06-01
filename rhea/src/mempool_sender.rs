@@ -107,6 +107,11 @@ impl MempoolSender {
         }
     }
 
+    #[tracing::instrument(
+        name = "rhea::send_tx_with_retries",
+        skip(self),
+        fields(tx_hash = ?geth_tx.hash)
+    )]
     async fn send_tx_with_retries(
         &self,
         geth_tx: GethTxPoolTx,

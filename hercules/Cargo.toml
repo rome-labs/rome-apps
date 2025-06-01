@@ -27,3 +27,5 @@ solana-client = { workspace = true }
 
 # rome
 rome-sdk = { workspace = true }
+rome-obs = { workspace = true }
+
