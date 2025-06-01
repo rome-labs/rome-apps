@@ -33,7 +33,7 @@ concurrency:
   
 jobs:
   build:
-    runs-on: ubuntu-22.04-8core-32gb-300
+    runs-on: ubuntu-latest
     steps:
       - name: 'Prepare environment variables from input'
         id: prepare_env
