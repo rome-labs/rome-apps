@@ -18,7 +18,7 @@ ENV CARGO_HOME=/usr/local/cargo
 ENV CARGO_TARGET_DIR=/opt/rome-apps/target
 
 COPY ./rome-evm /opt/rome-evm
-COPY ./rome-relayer /opt/rome-relayer
+# COPY ./rome-relayer /opt/rome-relayer
 COPY ./rome-sdk /opt/rome-sdk
 COPY ./rome-apps /opt/rome-apps
 
