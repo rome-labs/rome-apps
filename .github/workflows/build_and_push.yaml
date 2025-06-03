@@ -1,0 +1,47 @@
+name: Build with feature and push (no tests)
+
+on:
+  workflow_dispatch:
+    inputs:
+      rome_apps_ref_name:
+        type: string
+        description: 'rome-apps branch name'
+        required: true
+        default: 'main'
+      assign_tag:
+        type: string
+        description: 'assign tag to rome-apps image'
+        required: true
+        default: 'main'
+      rome_evm_ref_name:
+        type: string
+        description: 'rome_evm-private branch name'
+        required: false
+        default: 'main'
+      rome_evm_feature:
+        type: string
+        description: 'rome-evm build feature: ci, mainnet, testnet'
+        required: false
+        default: 'ci'
+      rome_sdk_ref_name:
+        type: string
+        description: 'rome_sdk branch name'
+        required: false
+        default: 'main'
+      rome_relayer_ref_name:
+        type: string
+        description: 'rome_relayer branch name'
+        required: false
+        default: 'main'
+
+jobs:
+  reusable-wf-build:
+    uses: ./.github/workflows/reusable_wf_build.yml
+    secrets: inherit
+    with:
+      rome_apps_ref_name: ${{ inputs.rome_apps_ref_name }}
+      rome_apps_tag: ${{ inputs.assign_tag }}
+      rome_evm_ref_name: ${{ inputs.rome_evm_ref_name }}
+      rome_evm_feature: ${{ inputs.rome_evm_feature }}
+      rome_sdk_ref_name: ${{ inputs.rome_sdk_ref_name }}
+      rome_relayer_ref_name: ${{ inputs.rome_relayer_ref_name }}

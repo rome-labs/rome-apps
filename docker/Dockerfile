@@ -12,6 +12,8 @@ RUN apt-get update -qq && \
     rm -rf /var/lib/apt/lists/*
 
 FROM base as builder
+ARG FEATURE
+
 ENV CARGO_HOME=/usr/local/cargo
 ENV CARGO_TARGET_DIR=/opt/rome-apps/target
 
@@ -29,7 +31,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,id=cargo-registry,sharin
 RUN --mount=type=cache,target=/usr/local/cargo/registry,id=cargo-registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,id=cargo-git,sharing=locked \
     --mount=type=cache,target=/opt/rome-apps/target,id=target-cache,sharing=locked \
-    RUSTFLAGS="-D warnings" cargo build --release --locked --quiet && \
+    RUSTFLAGS="-D warnings" cargo build --release --locked --quiet --features ${FEATURE} && \
     ls -l /opt/rome-apps/target/release/
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry,id=cargo-registry,sharing=locked \

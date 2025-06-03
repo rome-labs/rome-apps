@@ -11,13 +11,12 @@ jobs:
       ROME_TESTS_REF_NAME: "main" # If updating this, also update the uses in the job call-reusable-workflow-tests
       ROME_SDK_REF_NAME: "main"
       ROME_EVM_REF_NAME: "main"
-
       ROME_APPS_REF_NAME: ${{github.ref_name}} # If updating this, also update the uses in the job reusable-wf-build at bottom of this file
-      
+      ROME_RELAYER_REF_NAME: main
+
       # Set the versions of the various images to run tests against
       EVM_VERSION: "main"
       TESTS_VERSION: "main"
-
       GETH_VERSION: "main"
       UNISWAP_VERSION: "latest"
       OPENZEPPELIN_VERSION: "latest"
@@ -32,6 +31,7 @@ jobs:
       rome_evm_ref_name: ${{ steps.set_rome_tests_ref.outputs.rome_evm_ref_name }}
       rome_sdk_ref_name: ${{ steps.set_rome_tests_ref.outputs.rome_sdk_ref_name }}
       rome_apps_ref_name: ${{ steps.set_rome_tests_ref.outputs.rome_apps_ref_name }}
+      rome_relayer_ref_name: ${{ steps.set_rome_tests_ref.outputs.rome_relayer_ref_name }}
 
     steps:
       - name: 'Prepare Docker Image Tags Input'
@@ -67,6 +67,7 @@ jobs:
           echo "rome_evm_ref_name=${{ env.ROME_EVM_REF_NAME || 'main' }}" >> $GITHUB_OUTPUT
           echo "rome_sdk_ref_name=${{ env.ROME_SDK_REF_NAME || 'main' }}" >> $GITHUB_OUTPUT
           echo "rome_apps_ref_name=${{ env.ROME_APPS_REF_NAME || 'main' }}" >> $GITHUB_OUTPUT
+          echo "rome_relayer_ref_name=${{ env.ROME_RELAYER_REF_NAME || 'main' }}" >> $GITHUB_OUTPUT
 
   reusable-wf-build:
     uses: ./.github/workflows/reusable_wf_build.yml
@@ -76,7 +77,9 @@ jobs:
       rome_evm_ref_name: ${{ needs.prepare_env.outputs.rome_evm_ref_name }}
       rome_sdk_ref_name: ${{ needs.prepare_env.outputs.rome_sdk_ref_name }}
       rome_apps_ref_name: ${{ needs.prepare_env.outputs.rome_apps_ref_name }}
-      
+      rome_apps_tag: ${{ needs.prepare_env.outputs.rome_apps_ref_name }}
+      rome_relayer_ref_name: ${{ needs.prepare_env.outputs.rome_relayer_ref_name }}
+
   reusable-wf-tests:
     uses: rome-labs/tests/.github/workflows/reusable_wf_tests.yml@main
     needs: [prepare_env, reusable-wf-build]

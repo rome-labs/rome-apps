@@ -26,8 +26,8 @@ pub struct Cli {
 pub enum Cmd {
     /// registry a rollup in rome-evm contract
     RegRollup {
-        /// path to upgrade-authority keypair of the rome-evm contract
-        upgrade_authority: String,
+        /// path to registry_authority keypair of the rome-evm contract
+        registry_authority: String,
     },
     /// Depositing funds to the rome-evm balance account.
     /// Special type 0x7E of rlp is used.

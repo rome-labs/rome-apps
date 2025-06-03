@@ -24,9 +24,9 @@ Options:
 
 ##### Registry a rollup in rome-evm contract
 
-`cli --program-id <PROGRAM_ID> --chain-id <CHAIN_ID> --url <URL> reg-rollup <UPGRADE_AUTHORITY>`
+`cli --program-id <PROGRAM_ID> --chain-id <CHAIN_ID> --url <URL> reg-rollup <REGISTRY_AUTHORITY>`
 
-* `<UPGRADE_AUTHORITY>`  path to upgrade-authority keypair of the rome-evm contract
+* `<REGISTRY_AUTHORITY>`  path to registry_authority keypair of the rome-evm contract
 
 
 ##### Deposit funds to the address
@@ -73,7 +73,7 @@ Options:
 *
 
 #### Example
-`./cli --program-id CaQC27sVhdPyZF7defivoTQ48E8ws4tXvJfXYPRXboaH --chain-id 1001 --url http://localhost:8899 reg-rollup /opt/ci/upgrade-authority-keypair.json`
+`./cli --program-id CaQC27sVhdPyZF7defivoTQ48E8ws4tXvJfXYPRXboaH --chain-id 1001 --url http://localhost:8899 reg-rollup /opt/ci/registry-authority-keypair.json`
 
 `./cli --program-id CaQC27sVhdPyZF7defivoTQ48E8ws4tXvJfXYPRXboaH --chain-id 1001 --url http://localhost:8899 deposit 0xe235b9caf55b58863Ae955A372e49362b0f93726 1000000000000000000 /opt/ci/test-account-keypair.json`
 

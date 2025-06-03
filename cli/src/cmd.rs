@@ -74,12 +74,12 @@ pub async fn execute(cmd: Cmd, client: &Client) -> anyhow::Result<()> {
             println!("user (lamports):      {} -> {}", init_user, user);
             println!("rome-evm (lamports):  {} -> {}", init_pool, pool);
         }
-        Cmd::RegRollup { upgrade_authority } => {
-            let upgrade_authority = read_keypair_file(Path::new(&upgrade_authority))
-                .expect("read upgrade_authority keypair error");
+        Cmd::RegRollup { registry_authority } => {
+            let registry_authority = read_keypair_file(Path::new(&registry_authority))
+                .expect("read registry_authority keypair error");
 
             client
-                .reg_owner(client.chain_id(), &upgrade_authority)
+                .reg_owner(client.chain_id(), &registry_authority)
                 .await?;
             println!("chain_id {} has been registered", client.chain_id(),);
         }

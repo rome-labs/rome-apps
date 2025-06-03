@@ -3,26 +3,44 @@ name: build_docker_image
 on:
   workflow_call:
     inputs:
+      rome_apps_ref_name:
+        type: string
+        description: 'rome-apps branch name'
+        required: true
+        default: 'main'
+      rome_apps_tag:
+        type: string
+        description: 'assign tag to rome-apps image'
+        required: false
+        default: 'main'
       rome_evm_ref_name:
         type: string
         description: 'rome-evm branch name to use for building the image'
         required: true
         default: 'main'
+      rome_evm_feature:
+        type: string
+        description: 'rome-evm build feature: ci, mainnet, testnet'
+        required: false
+        default: 'ci'
       rome_sdk_ref_name:
         type: string
         description: 'rome-sdk branch name to use for building the image'
         required: true
-        default: 'main'
-      rome_apps_ref_name:
-        type: string
-        description: 'rome-apps branch name to use for building the image'
-        required: false
         default: 'main'
       rome_relayer_ref_name:
         type: string
         description: 'rome relayer branch name to use for building the image'
         required: false
         default: 'main'
+
+env:
+  ROME_APPS_REF_NAME: ${{ inputs.rome_apps_ref_name}}
+  ROME_APPS_TAG: ${{ inputs.rome_apps_tag}}
+  ROME_EVM_REF_NAME: ${{ inputs.rome_evm_ref_name}}
+  ROME_EVM_FEATURE: ${{ inputs.rome_evm_feature}}
+  ROME_SDK_REF_NAME: ${{ inputs.rome_sdk_ref_name}}
+  ROME_RELAYER_REF_NAME: ${{ inputs.rome_relayer_ref_name}}
 
 permissions:
   contents: read
@@ -35,18 +53,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 'Prepare environment variables from input'
-        id: prepare_env
-        run: |
-          rome_evm_ref_name='${{ inputs.rome_evm_ref_name || 'main' }}'
-          rome_sdk_ref_name='${{ inputs.rome_sdk_ref_name || 'main' }}'
-          rome_apps_ref_name='${{ inputs.rome_apps_ref_name || 'main' }}'
-          rome_relayer_ref_name='${{ inputs.rome_relayer_ref_name || 'main' }}'
-          echo "ROME_EVM_REF_NAME=$rome_evm_ref_name" >> $GITHUB_ENV
-          echo "ROME_SDK_REF_NAME=$rome_sdk_ref_name" >> $GITHUB_ENV
-          echo "ROME_APPS_REF_NAME=$rome_apps_ref_name" >> $GITHUB_ENV
-          echo "ROME_RELAYER_REF_NAME=$rome_relayer_ref_name" >> $GITHUB_ENV
-
       - name: Install Compose
         uses: ndeloof/install-compose-action@v0.0.1
         with:
@@ -61,7 +67,7 @@ jobs:
         with:
           repository: rome-labs/rome-evm
           path: rome-evm
-          ref: ${{env.ROME_EVM_REF_NAME}}
+          ref: ${{ env.ROME_EVM_REF_NAME }}
           token: ${{ secrets.GIT_ROLLUP_TOKEN }}
 
       - name: 'Checkout rome-sdk repository'
@@ -69,22 +75,14 @@ jobs:
         with:
           repository: rome-labs/rome-sdk
           path: rome-sdk
-          ref: ${{env.ROME_SDK_REF_NAME}}
-          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
-
-      - name: 'Checkout Relayer repository'
-        uses: actions/checkout@main
-        with:
-          repository: rome-labs/rome-relayer
-          path: rome-relayer
-          ref: ${{env.ROME_RELAYER_REF_NAME}}
+          ref: ${{ env.ROME_SDK_REF_NAME }}
           token: ${{ secrets.GIT_ROLLUP_TOKEN }}
 
       - name: 'Checkout rome-apps repository'
         uses: actions/checkout@v4
         with:
           path: rome-apps
-          ref: ${{env.ROME_APPS_REF_NAME}}
+          ref: ${{ env.ROME_APPS_REF_NAME }}
           token: ${{ secrets.GIT_ROLLUP_TOKEN }}
 
       - name: 'Login to Docker Hub'
@@ -93,41 +91,12 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
       - name: 'Build rome-apps image'
-        if: github.ref != 'refs/heads/main'
         uses: docker/build-push-action@v4.0.0
         with:
           context: .
           push: true
           file: rome-apps/docker/Dockerfile
-          tags: romelabs/rome-apps:${{env.ROME_APPS_REF_NAME}}
-          labels: romelabs/rome-apps:${{env.ROME_APPS_REF_NAME}}
-          cache-from: |
-            type=gha,mode=min,id=cargo-registry,scope=cargo
-            type=gha,mode=min,id=cargo-git,scope=git
-            type=gha,mode=min,id=target-cache,scope=target
-          secrets: |
-            GIT_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
-        
-      - name: 'Build rome-apps image (only on main)'
-        if: github.ref == 'refs/heads/main'
-        uses: docker/build-push-action@v4.0.0
-        with:
-          context: .
-          push: true
-          file: rome-apps/docker/Dockerfile
-          tags: romelabs/rome-apps:${{env.ROME_APPS_REF_NAME}}
-          labels: romelabs/rome-apps:${{env.ROME_APPS_REF_NAME}}
-          cache-from: |
-            type=gha,mode=min,id=cargo-registry,scope=cargo
-            type=gha,mode=min,id=cargo-git,scope=git
-            type=gha,mode=min,id=target-cache,scope=target
-          cache-to: |
-            type=gha,mode=min,id=cargo-registry,scope=cargo
-            type=gha,mode=min,id=cargo-git,scope=git
-            type=gha,mode=min,id=target-cache,scope=target
-          secrets: |
-            GIT_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
+          build-args: FEATURE=${{ env.ROME_EVM_FEATURE }}
+          tags: romelabs/rome-apps:${{ env.ROME_APPS_TAG }}
+          labels: romelabs/rome-apps:${{ env.ROME_APPS_TAG }}

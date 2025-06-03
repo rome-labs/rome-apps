@@ -21,12 +21,12 @@ if [ -z "${COMMAND}" ]; then
 fi;
 
 if [[ "$COMMAND" == "reg-rollup" ]]; then
-  if [ -z "${UPGRADE_AUTHORITY}" ]; then
-    echo "UPGRADE_AUTHORITY is not defined"
+  if [ -z "${REGISTRY_AUTHORITY}" ]; then
+    echo "REGISTRY_AUTHORITY is not defined"
     exit 1
   fi;
 
-  ./cli --program-id $PROGRAM_ID --chain-id $CHAIN_ID --url $SOLANA_RPC $COMMAND $UPGRADE_AUTHORITY
+  ./cli --program-id $PROGRAM_ID --chain-id $CHAIN_ID --url $SOLANA_RPC $COMMAND $REGISTRY_AUTHORITY
 
 elif [[ "$COMMAND" == "deposit" ]]; then
   if [ -z "${ADDRESS}" ]; then

@@ -3,6 +3,14 @@ name = "hercules"
 version = "0.1.0"
 edition = "2021"
 
+
+[features]
+single-state = ["rome-sdk/single-state"]
+testnet = ["rome-sdk/testnet"]
+mainnet = ["rome-sdk/mainnet"]
+ci = ["rome-sdk/ci"]
+default = []
+
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
