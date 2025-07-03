@@ -15,7 +15,6 @@ FROM base as builder
 ARG FEATURE
 
 COPY ./rome-evm /opt/rome-evm
-COPY ./rome-relayer /opt/rome-relayer
 COPY ./rome-sdk /opt/rome-sdk
 COPY ./rome-apps /opt/rome-apps
 
