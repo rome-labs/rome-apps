@@ -6,7 +6,6 @@ use rome_sdk::rome_evm_client::{Payer, RomeEVMClient};
 use rome_sdk::rome_solana::config::SolanaConfig;
 use rome_sdk::rome_solana::indexers::clock::SolanaClockIndexer;
 use rome_sdk::rome_solana::tower::SolanaTower;
-use solana_sdk::clock::Slot;
 use solana_sdk::pubkey::Pubkey;
 use std::net::SocketAddr;
 use std::str::FromStr;
@@ -15,13 +14,11 @@ use tokio::task::JoinHandle;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct ProxyConfig {
-    pub start_slot: Option<u64>,
     pub solana: SolanaConfig,
     pub program_id: String,
     pub chain_id: u64,
     pub payers: Vec<PayerConfig>,
     pub proxy_host: SocketAddr,
-    pub max_slot_history: Option<Slot>,
     pub ethereum_storage: EthereumStorageConfig,
     pub gas_price: u128,
 }

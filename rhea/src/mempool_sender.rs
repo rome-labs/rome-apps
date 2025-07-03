@@ -1,9 +1,10 @@
+use crate::rome_sender::RomeSender;
 use ethers::prelude::transaction::eip2718::TypedTransaction;
 use ethers::prelude::Signature;
 use rome_sdk::rome_evm_client::error::ProgramResult;
 use rome_sdk::rome_evm_client::error::RomeEvmError::Custom;
 use rome_sdk::rome_geth::types::GethTxPoolTx;
-use rome_sdk::{EthSignedTxTuple, RheaTx, Rome};
+use rome_sdk::{EthSignedTxTuple, RheaTx};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -13,13 +14,13 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 pub struct MempoolSender {
     sender_addr: String,
     tx_recv: UnboundedReceiver<(u64, GethTxPoolTx)>,
-    rome: Arc<Rome>,
+    rome: Arc<RomeSender>,
 }
 
 impl MempoolSender {
     pub fn init(
         sender_addr: String,
-        rome: Arc<Rome>,
+        rome: Arc<RomeSender>,
         sender_ttl: Duration,
         drop_sender_tx: UnboundedSender<String>,
     ) -> UnboundedSender<(u64, GethTxPoolTx)> {
@@ -129,30 +130,17 @@ impl MempoolSender {
                 let mut retry_delay = 2;
                 loop {
                     let rhea_tx = RheaTx::new(EthSignedTxTuple::new(tx.clone(), signature));
-                    match self.rome.compose_rollup_tx(rhea_tx).await {
-                        Ok(mut rome_tx) => {
-                            if let Err(err) = self.rome.send_and_confirm(&mut *rome_tx).await {
-                                tracing::warn!(
-                                    "SenderQueue {}: Failed to send transaction {:?}: {:?}",
-                                    self.sender_addr,
-                                    geth_tx.hash,
-                                    err
-                                )
-                            } else {
-                                tracing::info!(
-                                    "SenderQueue {}: Transaction {:?} executed in Rome-EVM",
-                                    self.sender_addr,
-                                    geth_tx.hash,
-                                );
-                                break Ok(());
-                            }
-                        }
-                        Err(e) => {
+                    match self
+                        .rome
+                        .send_transaction(&geth_tx.hash, &self.sender_addr, rhea_tx)
+                        .await
+                    {
+                        Ok(_) => break Ok(()),
+                        Err(_) => {
                             tracing::warn!(
-                                "SenderQueue {}: Failed to compose transaction {:?}: {:?}",
+                                "SenderQueue {}: Failed to send transaction {:?}",
                                 self.sender_addr,
                                 geth_tx.hash,
-                                e
                             );
                         }
                     }

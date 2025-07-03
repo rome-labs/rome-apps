@@ -1,7 +1,7 @@
 use crate::mempool_sender::MempoolSender;
+use crate::rome_sender::RomeSender;
 use ethers::types::TxHash;
 use rome_sdk::rome_geth::types::{GethTxPoolResult, GethTxPoolTx};
-use rome_sdk::Rome;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -12,13 +12,13 @@ struct MempoolImpl {
     transactions: HashMap<TxHash, (String, u64)>,
     senders: HashMap<String, UnboundedSender<(u64, GethTxPoolTx)>>,
     sender_ttl: Duration,
-    rome: Arc<Rome>,
+    rome: Arc<RomeSender>,
     drop_sender_tx: UnboundedSender<String>,
 }
 
 impl MempoolImpl {
     pub fn new(
-        rome: Arc<Rome>,
+        rome: Arc<RomeSender>,
         sender_ttl: Duration,
         drop_sender_tx: UnboundedSender<String>,
     ) -> Self {
@@ -123,7 +123,7 @@ async fn process_dropped_senders(
 }
 
 impl Mempool {
-    pub fn new(rome: Arc<Rome>, mempool_ttl: Duration) -> Self {
+    pub fn new(rome: Arc<RomeSender>, mempool_ttl: Duration) -> Self {
         let (drop_sender_tx, drop_sender_rx) = tokio::sync::mpsc::unbounded_channel();
         let mempool_impl = Arc::new(Mutex::new(MempoolImpl::new(
             rome,

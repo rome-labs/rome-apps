@@ -9,7 +9,7 @@ single-state = ["rome-sdk/single-state"]
 testnet = ["rome-sdk/testnet"]
 mainnet = ["rome-sdk/mainnet"]
 ci = ["rome-sdk/ci"]
-default = []
+default = ["ci"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -34,6 +34,6 @@ solana-sdk = { workspace = true }
 solana-client = { workspace = true }
 
 # rome
-rome-sdk = { workspace = true }
+rome-sdk = { workspace = true, default-features = false }
 rome-obs = { workspace = true }
 

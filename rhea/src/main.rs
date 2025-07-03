@@ -1,10 +1,10 @@
 use clap::Parser;
-use rome_sdk::Rome;
 use tokio::signal;
 
 use self::cli::Cli;
 use self::config::RheaConfig;
 use self::service::RheaService;
+use crate::rome_sender::RomeSender;
 use anyhow::{anyhow, bail};
 use dotenv::dotenv;
 use rome_obs::Otel;
@@ -16,6 +16,7 @@ mod cli;
 mod config;
 mod mempool;
 mod mempool_sender;
+mod rome_sender;
 mod service;
 
 #[tokio::main]
@@ -27,17 +28,17 @@ async fn main() -> anyhow::Result<()> {
     let config: RheaConfig = Cli::parse().load_config().await?;
     let program_id = Pubkey::from_str(&config.program_id)?;
 
-    let rome = Rome::new_with_config(rome_sdk::RomeConfig {
-        solana_config: config.solana.clone(),
-        rollups: vec![(config.chain_id, program_id.to_string())]
-            .into_iter()
-            .collect(),
-        payers: config.payers,
-    })
-    .await?;
-
     let rhea_service_jh = RheaService::start(
-        rome,
+        RomeSender::new(
+            config.rpc_urls,
+            config.commitment,
+            &vec![(config.chain_id, program_id.to_string())]
+                .into_iter()
+                .collect(),
+            &config.payers,
+        )
+        .await
+        .unwrap(),
         config.geth_indexer,
         config.mempool_ttl.map(Duration::from_secs),
     );

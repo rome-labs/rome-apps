@@ -70,6 +70,21 @@ Hercules is requiring environment variable HERCULES_CONFIG to be specified in th
 to the file containing configuration parameters of the service in an YAML/JSON format. Below is the description of each
 section and parameters of this configuration file:
 
+- **start_slot** - number of Solana slot to start indexation at
+- **end_slot** - (optional) number of solana slot where to stop Recovery (only takes effect when mode = Recovery)
+- **admin_rpc** - where to expose Admin API. Accepts string of a format: <IPv4_ADDRESS>:<PORT_NUMBER>
+- **mode** - mode of operation. Possible values are: **Indexer** - normal indexation mode, **Recovery** - recover solana block history (indexation is disabled, Admin API disabled).
+
+- **storage**
+
+  Parameters of the data storage
+  - **connection**
+    - **database_url** - connection string in diesel-compatible format: **postgres://\<username\>:\<password\>@\<server\>/\<database\>**
+    - **max_connections** - number of parallel connections for the connection pool
+    - **connection_timeout_sec** - connection timeout in seconds
+
+  - **relayer_url** - (optional) URL of Relayer RPC API.
+
 - **block_loader**
 
   (optional) Parameters of **Solana Block Loader**
@@ -82,72 +97,38 @@ section and parameters of this configuration file:
   - **commitment** - default commitment level to send requests with. Possible values: **Confirmed, Finalized**
   - **client** - configuration of the Solana Client.
     - **providers** - array of URLs of Solana RPC nodes.
+    - **emergency_providers** (OPTIONAL) - array of URLs of emergency Solana RPC nodes. These nodes will only being used in case if all other providers are not available or responding with errors and block loader has exhausted all retries.
 
+- **rollup_indexer** (optional) - RollupIndexer configuration
 
-- **solana_storage**
+  - **max_slot_history (optional)** - how many Solana blocks to store in the Solana Block Storage - all in case if not specified
 
-  Parameters of Solana Block Storage
-  - **type** - type of the backend. Currently available: **pg_storage**
+  - **block_parser**
   
-  #### type: pg_storage - PostgreSQL backend for Solana Block Storage
-  - **connection**
-    - **database_url** - connection string in diesel-compatible format: **postgres://\<username\>:\<password\>@\<server\>/\<database\>**
-    - **max_connections** - number of parallel connections for the connection pool
-    - **connection_timeout_sec** - connection timeout in seconds
+    Parameters of **Block Parser**
+    - **program_id** - (optional - program_id from block_loader config will be used if absent) base58 address of the Rome-EVM smart-contract on Solana
+    - **chain_id** - chain id withing selected Rome-EVM smart-contract
+    - **parse_mode** - determines algorithm of block parsing. Can accept values
+      - **engine_api** - parsing compatible with Engine API protocol - sequential Rome-EVM transactions with the same gas 
+        recipient will be packed into separate eth-block. One solana block can be converted into several eth-blocks
+      - **single_state** - parsing for single-state schema. All the transactions from particular Solana block are packed 
+        into single eth-block
+
+  - **block_producer**
+
+    (Optional) parameters of **Block Producer**. **Admin API** will provide additional methods for block production in case if
+    **block_producer** section is absent in configuration
+    - **type** - type of the Block Producer. Currently available: **engine_api, single_state**
   
-  ### type: relayer - Relayer backend for Solana Block Storage
-  - **relayer_url** - URL of Relayer RPC API.
-  - **connection**
-    - **database_url** - connection string in diesel-compatible format: **postgres://\<username\>:\<password\>@\<server\>/\<database\>**
-    - **max_connections** - number of parallel connections for the connection pool
-    - **connection_timeout_sec** - connection timeout in seconds
+      **NOTE: block_parser.parse_mode = block_producer.type - THIS IS MANDATORY** 
 
+    - **engine_api** - Engine API Block Producer using op-geth for block production
+      - **geth_engine** parameters of Engine API connection
+        - **geth_engine_addr** - URL of Engine API RPC (usually resides on op-geth port 8551)
+        - **geth_engine_secret** - Engine API authentication token
+      - **geth_api** - URL of op-geth Ethereum API (usually resides on op-geth port 8545)
 
-- **block_parser**
-  
-  Parameters of **Block Parser**
-  - **program_id** - (optional - program_id from block_loader config will be used if absent) base58 address of the Rome-EVM smart-contract on Solana
-  - **chain_id** - chain id withing selected Rome-EVM smart-contract
-  - **parse_mode** - determines algorithm of block parsing. Can accept values
-    - **engine_api** - parsing compatible with Engine API protocol - sequential Rome-EVM transactions with the same gas 
-      recipient will be packed into separate eth-block. One solana block can be converted into several eth-blocks
-    - **single_state** - parsing for single-state schema. All the transactions from particular Solana block are packed 
-      into single eth-block
-  
-
-- **ethereum_storage**
-
-  Parameters of **Ethereum Block Storage**
-  - **type** - type of the backend. Currently available: **pg_storage**
-  
-  #### type: pg_storage - PostgreSQL backend for Ethereum Block Storage
-  - **connection**
-    - **database_url** - connection string in diesel-compatible format: **postgres://\<username\>:\<password\>@\<server\>/\<database\>**
-    - **max_connections** - number of parallel connections for the connection pool
-    - **connection_timeout_sec** - connection timeout in seconds
-
-
-- **block_producer**
-
-  (Optional) parameters of **Block Producer**. **Admin API** will provide additional methods for block production in case if
-  **block_producer** section is absent in configuration
-  - **type** - type of the Block Producer. Currently available: **engine_api, single_state**
-  
-    **NOTE: block_parser.parse_mode = block_producer.type - THIS IS MANDATORY** 
-
-  - **engine_api** - Engine API Block Producer using op-geth for block production
-    - **geth_engine** parameters of Engine API connection
-      - **geth_engine_addr** - URL of Engine API RPC (usually resides on op-geth port 8551)
-      - **geth_engine_secret** - Engine API authentication token
-    - **geth_api** - URL of op-geth Ethereum API (usually resides on op-geth port 8545)
-
-  - **single_state** - Single state block producer - copies Solana block parameters to eth-blocks
-
-
-- **start_slot** - number of Solana slot to start indexation at
-- **admin_rpc** - where to expose Admin API. Accepts string of a format: <IPv4_ADDRESS>:<PORT_NUMBER>
-- **max_slot_history (optional)** - how many Solana blocks to store in the Solana Block Storage - all in case if not specified
-- **mode** - mode of operation. Possible values are: **Indexer** - normal indexation mode, **Recovery** - recover solana block history (indexation is disabled, Admin API disabled).
+    - **single_state** - Single state block producer - copies Solana block parameters to eth-blocks
 
 ## Supported Configurations
 Hercules can participate in several different Rome-EVM setups depending on the needs: 
@@ -166,6 +147,12 @@ rollup over op-geth client.
 ### Example:
 
 ```yml
+# Common parameters
+start_slot: 0
+admin_rpc: "0.0.0.0:8000"
+mode: Indexer
+# Optional - can be skipped if Solana blocks are loaded from relayer 
+# or replicated from another database
 block_loader:
   program_id: "CmobH2vR6aUtQ8x4xd1LYNiH6k2G7PFT5StTgWqvy2VU"
   batch_size: 64
@@ -178,35 +165,62 @@ block_loader:
       - "http://solana1:8899"
       - "http://solana2:8899"
       - "http://solana3:8899"
-solana_storage:
-  type: pg_storage
+# Main storage for indexed data
+storage:
   connection:
     database_url: "postgres://hercules:qwerty123@postgres/test_rollup"
     max_connections: 16
     connection_timeout_sec: 30
-block_parser:
-  program_id: "CmobH2vR6aUtQ8x4xd1LYNiH6k2G7PFT5StTgWqvy2VU"
-  chain_id: 1001
-  parse_mode: engine_api
-ethereum_storage:
-  type: pg_storage
-  connection:
-    database_url: "postgres://hercules:qwerty123@postgres/test_rollup"
-    max_connections: 16
-    connection_timeout_sec: 30
-block_producer:
-  type: engine_api
-  geth_engine:
-    geth_engine_addr: "http://geth:8551"
-    geth_engine_secret: "a535c9f4f9df8e00cd6a15a7baa74bb92ca47ebdf59b6f3f2d8a8324b6c1767c"
-  geth_api: "http://geth:8545"
-start_slot: 0
-admin_rpc: "0.0.0.0:8000"
-max_slot_history: 4096
-mode: Indexer
+# (Optional) Rollup-related parameters
+# Can be skipped if the current instance of indexer is only responsible for loading solana blocks
+rollup_indexer:
+  max_slot_history: 4096
+  block_parser:
+    program_id: "CmobH2vR6aUtQ8x4xd1LYNiH6k2G7PFT5StTgWqvy2VU"
+    chain_id: 1001
+    parse_mode: engine_api
+  block_producer:
+    type: engine_api
+    geth_engine:
+      geth_engine_addr: "http://geth:8551"
+      geth_engine_secret: "a535c9f4f9df8e00cd6a15a7baa74bb92ca47ebdf59b6f3f2d8a8324b6c1767c"
+    geth_api: "http://geth:8545"
 ```
 
-### 2. Rome-EVM Based Rollup on Ethereum (L1)
+### 2. Rome-EVM Rollup on Solana (L1) with op-geth client using Relayer
+Same as above but using Relayer as a storage backend.
+
+### Example:
+
+```yml
+# Common parameters
+start_slot: 0
+admin_rpc: "0.0.0.0:8000"
+mode: Indexer
+# Main storage for indexed data
+storage:
+  relayer_url: "grpc://relayer:9070"
+  connection:
+    database_url: "postgres://hercules:qwerty123@postgres/test_rollup"
+    max_connections: 16
+    connection_timeout_sec: 30
+# (Optional) Rollup-related parameters
+# Can be skipped if the current instance of indexer is only responsible for loading solana blocks
+rollup_indexer:
+  max_slot_history: 4096
+  block_parser:
+    program_id: "CmobH2vR6aUtQ8x4xd1LYNiH6k2G7PFT5StTgWqvy2VU"
+    chain_id: 1001
+    parse_mode: engine_api
+  block_producer:
+    type: engine_api
+    geth_engine:
+      geth_engine_addr: "http://geth:8551"
+      geth_engine_secret: "a535c9f4f9df8e00cd6a15a7baa74bb92ca47ebdf59b6f3f2d8a8324b6c1767c"
+    geth_api: "http://geth:8545"
+```
+
+### 3. Rome-EVM Based Rollup on Ethereum (L1)
 Ethereum plays a role of consensus layer, the Rome-EVM on Solana provides execution layer. Hercules, indexes Rome-EVM 
 transactions from Solana blocks and provides pre-confirm data for op-node. User interacts with the
 rollup over op-geth client. In this configuration, Block Producer is disabled in Hercules, because blocks are produced
@@ -216,6 +230,11 @@ during block production process
 ### Example:
 
 ```yml
+start_slot: 0
+admin_rpc: "0.0.0.0:8000"
+mode: Indexer
+# Optional - can be skipped if Solana blocks are loaded from relayer 
+# or replicated from another database
 block_loader:
   program_id: "CmobH2vR6aUtQ8x4xd1LYNiH6k2G7PFT5StTgWqvy2VU"
   batch_size: 64
@@ -228,34 +247,33 @@ block_loader:
       - "http://solana1:8899"
       - "http://solana2:8899"
       - "http://solana3:8899"
-solana_storage:
-  type: pg_storage
+# Main storage for indexed data
+storage:
   connection:
     database_url: "postgres://hercules:qwerty123@postgres/test_rollup"
     max_connections: 16
     connection_timeout_sec: 30
-block_parser:
-  program_id: "CmobH2vR6aUtQ8x4xd1LYNiH6k2G7PFT5StTgWqvy2VU"
-  chain_id: 1001
-  parse_mode: engine_api
-ethereum_storage:
-  type: pg_storage
-  connection:
-    database_url: "postgres://hercules:qwerty123@postgres/test_rollup"
-    max_connections: 16
-    connection_timeout_sec: 30
-start_slot: 0
-admin_rpc: "0.0.0.0:8000"
-max_slot_history: 4096
-mode: Indexer
+# (Optional) Rollup-related parameters
+# Can be skipped if the current instance of indexer is only responsible for loading solana blocks
+rollup_indexer:
+  max_slot_history: 4096
+  block_parser:
+    program_id: "CmobH2vR6aUtQ8x4xd1LYNiH6k2G7PFT5StTgWqvy2VU"
+    chain_id: 1001
+    parse_mode: engine_api
 ```
 
-### 3. Rome-EVM Rollup on Solana (L1) with a Custom rome Client
+### 4. Rome-EVM Rollup on Solana (L1) with a Custom rome Client
 Solana serves as the L1, hosting the Rome-EVM rollup. Hercules indexes Rome-EVM transactions from Solana blocks and 
 prepares transaction and block history data for custom Rome-client. This schema also known as "Single state".
 User interacts with the rollup over custom Rome-client.
 
 ```yml
+start_slot: 0
+admin_rpc: "0.0.0.0:8000"
+mode: Indexer
+# Optional - can be skipped if Solana blocks are loaded from relayer 
+# or replicated from another database
 block_loader:
   program_id: "CmobH2vR6aUtQ8x4xd1LYNiH6k2G7PFT5StTgWqvy2VU"
   batch_size: 64
@@ -268,31 +286,23 @@ block_loader:
       - "http://solana1:8899"
       - "http://solana2:8899"
       - "http://solana3:8899"
-solana_storage:
-  type: pg_storage
-  connection:
-    database_url: "postgres://hercules:qwe~~~~rty123@postgres/test_rollup"
-    max_connections: 16
-    connection_timeout_sec: 30
-block_parser:
-  program_id: "CmobH2vR6aUtQ8x4xd1LYNiH6k2G7PFT5StTgWqvy2VU"
-  chain_id: 1001
-  parse_mode: single_state
-ethereum_storage:
-  type: pg_storage
+# Main storage for indexed data
+storage:
   connection:
     database_url: "postgres://hercules:qwerty123@postgres/test_rollup"
     max_connections: 16
     connection_timeout_sec: 30
-block_producer:
-  type: single_state
-start_slot: 0
-admin_rpc: "0.0.0.0:8000"
-max_slot_history: 4096
-mode: Indexer
+# (Optional) Rollup-related parameters
+# Can be skipped if the current instance of indexer is only responsible for loading solana blocks
+rollup_indexer:
+  max_slot_history: 4096
+  block_parser:
+    program_id: "CmobH2vR6aUtQ8x4xd1LYNiH6k2G7PFT5StTgWqvy2VU"
+    chain_id: 1001
+    parse_mode: single_state
+  block_producer:
+    type: single_state
 ```
-
-
 
 ## Tracing on Otel Telemetry and Logging 
 

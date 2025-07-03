@@ -8,12 +8,13 @@ single-state = ["rome-sdk/single-state"]
 testnet = ["rome-sdk/testnet"]
 mainnet = ["rome-sdk/mainnet"]
 ci = ["rome-sdk/ci"]
-default = []
+default = ["ci"]
 
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 dotenv = { workspace = true }
+url = {workspace = true}
 
 # codec
 serde = { workspace = true }
@@ -29,7 +30,7 @@ tokio = { workspace = true }
 solana-sdk = { workspace = true }
 
 # rome
-rome-sdk = { workspace = true }
+rome-sdk = { workspace = true, default-features = false }
 rome-obs = { workspace = true }
 
 # evm

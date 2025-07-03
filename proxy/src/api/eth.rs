@@ -10,6 +10,7 @@ use {
         TxHash, H256, U256, U64,
     },
     rome_sdk::rome_evm_client::indexer::BlockType,
+    solana_sdk::pubkey::Pubkey,
 };
 
 #[async_trait]
@@ -132,6 +133,18 @@ impl EthServer for Proxy {
         result
     }
 
+    #[tracing::instrument(name = "proxy::emulate_with_payer", skip(self))]
+    async fn emulate_with_payer(&self, rlp: Bytes, pkey: Pubkey) -> ApiResult<Vec<Pubkey>> {
+        let account_list = self
+            .rome_evm_client
+            .emulate_tx(rlp, pkey)
+            .await
+            .map_err(ApiError::from);
+
+        tracing::info!("rome_emulate_tx: {:?}", account_list);
+        account_list
+    }
+
     #[tracing::instrument(name = "proxy::net_version", skip(self))]
     async fn net_version(&self) -> ApiResult<U64> {
         let result = self.rome_evm_client.chain_id();
@@ -201,5 +214,15 @@ impl EthServer for Proxy {
     #[tracing::instrument(name = "proxy::eth_max_priority_fee_per_gas", skip(self))]
     async fn eth_max_priority_fee_per_gas(&self) -> ApiResult<U256> {
         Ok(U256::zero())
+    }
+
+    #[tracing::instrument(name = "proxy::emulate_tx", skip(self))]
+    async fn emulate_tx(&self, rlp: Bytes) -> ApiResult<()> {
+        let _ = self
+            .rome_evm_client
+            .prepare_transaction(rlp)
+            .await
+            .inspect_err(|err| tracing::warn!("emulate_tx error: {:?}", err))?;
+        Ok(())
     }
 }

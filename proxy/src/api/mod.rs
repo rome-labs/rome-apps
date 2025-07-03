@@ -11,6 +11,7 @@ use {
         error::RomeEvmError, indexer::BlockType, rome_evm::error::RomeProgramError,
     },
     solana_client::client_error::ClientError,
+    solana_sdk::pubkey::Pubkey,
     thiserror::Error,
 };
 
@@ -125,4 +126,9 @@ pub trait Eth {
 
     #[method(name = "eth_maxPriorityFeePerGas")]
     async fn eth_max_priority_fee_per_gas(&self) -> ApiResult<U256>;
+    #[method(name = "rome_emulateTxWithPayer")]
+    async fn emulate_with_payer(&self, rlp: Bytes, pkey: Pubkey) -> ApiResult<Vec<Pubkey>>;
+
+    #[method(name = "rome_emulateTx")]
+    async fn emulate_tx(&self, rlp: Bytes) -> ApiResult<()>;
 }

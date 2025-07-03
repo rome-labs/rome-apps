@@ -1,8 +1,8 @@
 use crate::mempool::Mempool;
+use crate::rome_sender::RomeSender;
 use rome_sdk::rome_geth::indexers::pending_txs::GethPendingTxsIndexer;
 use rome_sdk::rome_geth::types::{GethTxPoolReceiver, GethTxPoolSender};
 use rome_sdk::rome_utils::services::ServiceRunner;
-use rome_sdk::Rome;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -28,7 +28,7 @@ impl RheaService {
 
     /// Listen to the mempool channel and send transactions to the rollup
     async fn mempool_loop(
-        rome: Arc<Rome>,
+        rome: Arc<RomeSender>,
         mut geth_rx: GethTxPoolReceiver,
         mempool_ttl: Option<Duration>,
     ) {
@@ -48,7 +48,7 @@ impl RheaService {
 
     /// Start the Rhea service
     pub async fn start(
-        rome: Rome,
+        rome: RomeSender,
         geth_indexer: GethPendingTxsIndexer,
         mempool_ttl: Option<Duration>,
     ) -> anyhow::Result<()> {

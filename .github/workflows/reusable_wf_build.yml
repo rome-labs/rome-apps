@@ -35,68 +35,146 @@ on:
         default: 'main'
 
 env:
-  ROME_APPS_REF_NAME: ${{ inputs.rome_apps_ref_name}}
-  ROME_APPS_TAG: ${{ inputs.rome_apps_tag}}
-  ROME_EVM_REF_NAME: ${{ inputs.rome_evm_ref_name}}
-  ROME_EVM_FEATURE: ${{ inputs.rome_evm_feature}}
-  ROME_SDK_REF_NAME: ${{ inputs.rome_sdk_ref_name}}
-  ROME_RELAYER_REF_NAME: ${{ inputs.rome_relayer_ref_name}}
+  ROME_APPS_REF_NAME: ${{ inputs.rome_apps_ref_name }}
+  ROME_APPS_TAG: ${{ inputs.rome_apps_tag }}
+  ROME_EVM_REF_NAME: ${{ inputs.rome_evm_ref_name }}
+  ROME_EVM_FEATURE: ${{ inputs.rome_evm_feature }}
+  ROME_SDK_REF_NAME: ${{ inputs.rome_sdk_ref_name }}
+  ROME_RELAYER_REF_NAME: ${{ inputs.rome_relayer_ref_name }}
 
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.job }}
-  cancel-in-progress: true  
-  
+  cancel-in-progress: true
+
 jobs:
-  build:
+  build-amd64:
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
     steps:
       - name: Install Compose
         uses: ndeloof/install-compose-action@v0.0.1
         with:
-          version: v2.1.0 # defaults to 'latest'
-          legacy: true    # will also install in PATH as `docker-compose`
+          version: v2.1.0
+          legacy: true
 
-      - name: Check Docker Compose version
-        run: docker-compose --version
-
-      - name: 'Checkout rome-evm repository'
-        uses: actions/checkout@main
-        with:
-          repository: rome-labs/rome-evm
-          path: rome-evm
-          ref: ${{ env.ROME_EVM_REF_NAME }}
-          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
-
-      - name: 'Checkout rome-sdk repository'
-        uses: actions/checkout@main
-        with:
-          repository: rome-labs/rome-sdk
-          path: rome-sdk
-          ref: ${{ env.ROME_SDK_REF_NAME }}
-          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
-
-      - name: 'Checkout rome-apps repository'
+      - name: Checkout all dependencies
         uses: actions/checkout@v4
         with:
           path: rome-apps
           ref: ${{ env.ROME_APPS_REF_NAME }}
           token: ${{ secrets.GIT_ROLLUP_TOKEN }}
 
-      - name: 'Login to Docker Hub'
+      - name: Checkout rome-evm
+        uses: actions/checkout@v4
+        with:
+          repository: rome-labs/rome-evm
+          path: rome-evm
+          ref: ${{ env.ROME_EVM_REF_NAME }}
+          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+
+      - name: Checkout rome-sdk
+        uses: actions/checkout@v4
+        with:
+          repository: rome-labs/rome-sdk
+          path: rome-sdk
+          ref: ${{ env.ROME_SDK_REF_NAME }}
+          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      - name: 'Build rome-apps image'
-        uses: docker/build-push-action@v4.0.0
+      - name: Build and push amd64 image
+        id: push
+        uses: docker/build-push-action@v4
         with:
           context: .
-          push: true
           file: rome-apps/docker/Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: false
           build-args: FEATURE=${{ env.ROME_EVM_FEATURE }}
           tags: romelabs/rome-apps:${{ env.ROME_APPS_TAG }}
-          labels: romelabs/rome-apps:${{ env.ROME_APPS_TAG }}
+
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - name: Checkout all dependencies
+        uses: actions/checkout@v4
+        with:
+          path: rome-apps
+          ref: ${{ env.ROME_APPS_REF_NAME }}
+          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+
+      - name: Checkout rome-evm
+        uses: actions/checkout@v4
+        with:
+          repository: rome-labs/rome-evm
+          path: rome-evm
+          ref: ${{ env.ROME_EVM_REF_NAME }}
+          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+
+      - name: Checkout rome-sdk
+        uses: actions/checkout@v4
+        with:
+          repository: rome-labs/rome-sdk
+          path: rome-sdk
+          ref: ${{ env.ROME_SDK_REF_NAME }}
+          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Build and push arm64 image
+        id: push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: rome-apps/docker/Dockerfile
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          build-args: FEATURE=${{ env.ROME_EVM_FEATURE }}
+          tags: romelabs/rome-apps:${{ env.ROME_APPS_TAG }}
+
+  create-manifest:
+    runs-on: ubuntu-latest
+    needs: [build-amd64, build-arm64]
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Create and push multi-arch manifest
+        run: |
+          docker manifest create romelabs/rome-apps:${{ env.ROME_APPS_TAG }} \
+            --amend romelabs/rome-apps@${{ needs.build-amd64.outputs.digest }} \
+            --amend romelabs/rome-apps@${{ needs.build-arm64.outputs.digest }}
+          docker manifest push romelabs/rome-apps:${{ env.ROME_APPS_TAG }}
+
+      - name: Tag and push :latest (if main)
+        if: ${{ env.ROME_APPS_TAG == 'main' }}
+        run: |
+          docker manifest create romelabs/rome-apps:latest \
+            --amend romelabs/rome-apps@${{ needs.build-amd64.outputs.digest }} \
+            --amend romelabs/rome-apps@${{ needs.build-arm64.outputs.digest }}
+          docker manifest push romelabs/rome-apps:latest
