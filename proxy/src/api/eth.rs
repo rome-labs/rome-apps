@@ -1,3 +1,4 @@
+use crate::api::{B58Pubkey, EmulationAccountMeta};
 use {
     super::EthServer,
     crate::{
@@ -10,7 +11,6 @@ use {
         TxHash, H256, U256, U64,
     },
     rome_sdk::rome_evm_client::indexer::BlockType,
-    solana_sdk::pubkey::Pubkey,
 };
 
 #[async_trait]
@@ -134,15 +134,22 @@ impl EthServer for Proxy {
     }
 
     #[tracing::instrument(name = "proxy::emulate_with_payer", skip(self))]
-    async fn emulate_with_payer(&self, rlp: Bytes, pkey: Pubkey) -> ApiResult<Vec<Pubkey>> {
-        let account_list = self
+    async fn emulate_with_payer(
+        &self,
+        rlp: Bytes,
+        pkey: B58Pubkey,
+    ) -> ApiResult<Vec<EmulationAccountMeta>> {
+        let result = self
             .rome_evm_client
-            .emulate_tx(rlp, pkey)
+            .emulate_tx(rlp, pkey.0)
             .await
-            .map_err(ApiError::from);
+            .map_err(ApiError::from)?
+            .into_iter()
+            .map(EmulationAccountMeta::from)
+            .collect::<Vec<_>>();
 
-        tracing::info!("rome_emulate_tx: {:?}", account_list);
-        account_list
+        tracing::info!("rome_emulate_tx: {:?}", result);
+        Ok(result)
     }
 
     #[tracing::instrument(name = "proxy::net_version", skip(self))]
